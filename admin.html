@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StakeChain Admin</title>
+
+  <!-- Firebase 10 Compat SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+  <!-- Chart.js for overview bar chart -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root {
+      --sb:   #1a1a2e;
+      --main: #16213e;
+      --card: #0f3460;
+      --gold: #FFD700;
+      --gdk:  #b8960c;
+      --text: #e0e0e0;
+      --mut:  #8899aa;
+      --bdr:  rgba(255,215,0,.15);
+      --red:  #ff4455;
+      --grn:  #44cc88;
+      --rhov: rgba(255,215,0,.05);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--main); color: var(--text); font-family: 'Segoe UI',system-ui,sans-serif; min-height: 100vh; display: flex; }
+
+    /* LOGIN */
+    #loginScreen {
+      position: fixed; inset: 0; background: var(--sb); z-index: 999;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+    }
+    #loginScreen.hidden { display: none; }
+    .l-logo  { font-size: 52px; }
+    .l-title { color: var(--gold); font-size: 28px; font-weight: 900; letter-spacing: 2px; }
+    .l-sub   { color: var(--mut); font-size: 12px; letter-spacing: 1px; margin-top: -10px; }
+    .l-box   { background: var(--card); border: 1px solid var(--bdr); border-radius: 16px; padding: 28px 24px; display: flex; flex-direction: column; gap: 14px; width: 300px; }
+    .l-box label { font-size: 12px; color: var(--mut); letter-spacing: 1px; text-transform: uppercase; }
+    .l-box input { background: rgba(255,255,255,.07); border: 1px solid var(--bdr); border-radius: 8px; color: var(--text); font-size: 15px; padding: 10px 12px; outline: none; width: 100%; }
+    .l-box input:focus { border-color: var(--gold); }
+    .l-btn { background: linear-gradient(135deg, var(--gdk), var(--gold)); border: none; border-radius: 10px; color: #1a1a2e; font-size: 15px; font-weight: 800; padding: 12px; cursor: pointer; letter-spacing: 1px; }
+    .l-err { color: var(--red); font-size: 13px; text-align: center; display: none; }
+
+    /* SIDEBAR */
+    #sidebar {
+      width: 220px; background: var(--sb); border-right: 1px solid var(--bdr);
+      padding: 20px 0; display: flex; flex-direction: column;
+      position: fixed; top: 0; bottom: 0; left: 0; z-index: 50; transition: transform .3s;
+    }
+    .sb-brand    { padding: 0 18px 20px; border-bottom: 1px solid var(--bdr); margin-bottom: 12px; }
+    .sb-bname    { color: var(--gold); font-size: 18px; font-weight: 900; letter-spacing: 1px; }
+    .sb-bsub     { color: var(--mut); font-size: 10px; }
+    .sb-nav      { display: flex; flex-direction: column; gap: 2px; padding: 0 10px; flex: 1; }
+    .sb-item     { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; cursor: pointer; color: var(--mut); font-size: 13px; font-weight: 600; transition: all .2s; border: none; background: transparent; text-align: left; width: 100%; }
+    .sb-ic       { font-size: 18px; }
+    .sb-item:hover  { background: rgba(255,215,0,.07); color: var(--text); }
+    .sb-item.active { background: rgba(255,215,0,.12); color: var(--gold); }
+    .sb-foot     { padding: 10px 10px 0; border-top: 1px solid var(--bdr); }
+
+    /* MAIN */
+    #mainContent { margin-left: 220px; flex: 1; padding: 24px; }
+    #menuToggle  { display: none; position: fixed; top: 14px; left: 14px; z-index: 60; background: var(--sb); border: 1px solid var(--bdr); border-radius: 8px; color: var(--gold); font-size: 20px; padding: 6px 10px; cursor: pointer; }
+
+    @media (max-width: 700px) {
+      #menuToggle  { display: block; }
+      #sidebar     { transform: translateX(-220px); }
+      #sidebar.open{ transform: translateX(0); }
+      #mainContent { margin-left: 0; }
+    }
+
+    /* PANELS */
+    .panel        { display: none; }
+    .panel.active { display: block; }
+    .panel-title  { font-size: 20px; font-weight: 800; color: var(--gold); margin-bottom: 20px; }
+
+    /* STAT CARDS */
+    .stat-cards { display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap: 14px; margin-bottom: 24px; }
+    .stat-card  { background: var(--card); border: 1px solid var(--bdr); border-radius: 14px; padding: 18px; text-align: center; }
+    .sc-ico { font-size: 28px; margin-bottom: 6px; }
+    .sc-val { font-size: 26px; font-weight: 900; color: var(--gold); }
+    .sc-lbl { font-size: 11px; color: var(--mut); letter-spacing: .5px; text-transform: uppercase; margin-top: 3px; }
+
+    /* ACTIVITY FEED */
+    .sec-hdr { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 10px; }
+    #activityFeed { background: var(--sb); border: 1px solid var(--bdr); border-radius: 12px; padding: 4px 0; max-height: 280px; overflow-y: auto; margin-bottom: 24px; }
+    .feed-item { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-bottom: 1px solid rgba(255,255,255,.04); font-size: 12px; }
+    .feed-item:last-child { border-bottom: none; }
+    .feed-dot  { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .feed-name { font-weight: 600; flex: 1; }
+    .feed-net  { font-weight: 700; }
+    .win-col   { color: var(--grn); }
+    .loss-col  { color: var(--red); }
+    .feed-time { color: var(--mut); font-size: 10px; }
+
+    /* CHART */
+    .chart-wrap { background: var(--sb); border: 1px solid var(--bdr); border-radius: 12px; padding: 16px; margin-bottom: 24px; }
+    #gamesChart { max-height: 200px; }
+
+    /* TABLES */
+    .tbl-wrap { background: var(--sb); border: 1px solid var(--bdr); border-radius: 12px; overflow: hidden; margin-bottom: 16px; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 600px; }
+    thead th { background: #0f3460; color: var(--gold); font-size: 11px; letter-spacing: .5px; text-transform: uppercase; padding: 10px 12px; text-align: left; white-space: nowrap; }
+    tbody tr { border-bottom: 1px solid rgba(255,255,255,.04); transition: background .15s; }
+    tbody tr:hover { background: var(--rhov); }
+    tbody td { padding: 9px 12px; vertical-align: middle; }
+    .empty-row td { text-align: center; color: var(--mut); padding: 30px; }
+
+    /* INPUTS / BUTTONS */
+    .inp { background: rgba(255,255,255,.07); border: 1px solid var(--bdr); border-radius: 8px; color: var(--text); font-size: 13px; padding: 7px 10px; outline: none; }
+    .inp:focus { border-color: var(--gold); }
+    .inp-sm  { width: 80px; }
+    .btn { border: none; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 700; padding: 6px 12px; transition: opacity .2s; }
+    .btn:hover   { opacity: .85; }
+    .btn-gold    { background: linear-gradient(135deg, var(--gdk), var(--gold)); color: #1a1a2e; }
+    .btn-red     { background: var(--red); color: #fff; }
+    .btn-grn     { background: var(--grn); color: #1a1a2e; }
+    .btn-gray    { background: rgba(255,255,255,.12); color: var(--text); }
+    .btn-lg      { padding: 10px 22px; font-size: 14px; border-radius: 10px; }
+
+    /* FILTER ROW */
+    .filter-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
+    .filter-row .inp { flex: 1; min-width: 160px; }
+
+    /* PAGER */
+    .pager { display: flex; justify-content: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+    .pager .btn { min-width: 36px; }
+    .pager .btn.cur-pg { background: var(--gold); color: #1a1a2e; }
+
+    /* FORM CARD */
+    .form-card { background: var(--sb); border: 1px solid var(--bdr); border-radius: 14px; padding: 20px; margin-bottom: 20px; }
+    .form-card h3 { font-size: 14px; color: var(--gold); margin-bottom: 14px; }
+    .form-grid  { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    .form-group.full { grid-column: 1 / -1; }
+    .form-group label { font-size: 11px; color: var(--mut); letter-spacing: .5px; text-transform: uppercase; }
+    .form-group .inp  { width: 100%; }
+    textarea.inp { resize: vertical; min-height: 80px; font-family: inherit; }
+
+    /* SETTINGS */
+    .settings-list { display: flex; flex-direction: column; gap: 12px; }
+    .setting-row   { background: var(--sb); border: 1px solid var(--bdr); border-radius: 12px; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .si-lbl { font-size: 13px; font-weight: 600; display: block; }
+    .si-sub { font-size: 11px; color: var(--mut); margin-top: 2px; }
+    .flex-gap { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .toggle { width: 44px; height: 24px; background: rgba(255,255,255,.15); border-radius: 12px; position: relative; cursor: pointer; transition: background .25s; flex-shrink: 0; }
+    .toggle.on { background: var(--grn); }
+    .toggle::after { content:''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; background: #fff; border-radius: 50%; transition: transform .25s; }
+    .toggle.on::after { transform: translateX(20px); }
+
+    /* BULK CHIPS BOX */
+    #bulkBox { display: none; background: var(--card); border: 1px solid var(--bdr); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+    .bulk-title { font-size: 13px; font-weight: 700; color: var(--gold); margin-bottom: 10px; }
+
+    /* MISC */
+    .chip-badge  { color: var(--gold); font-weight: 700; }
+    .ok-badge    { background: var(--grn); color: #1a1a2e; border-radius: 4px; padding: 2px 6px; font-size: 10px; font-weight: 700; }
+    .ban-badge   { background: var(--red); color: #fff;    border-radius: 4px; padding: 2px 6px; font-size: 10px; font-weight: 700; }
+    .divider     { height: 1px; background: var(--bdr); margin: 16px 0; }
+
+    /* TOAST */
+    #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--card); border: 1px solid var(--gold); border-radius: 10px; padding: 10px 20px; font-size: 13px; color: var(--gold); opacity: 0; pointer-events: none; transition: opacity .3s; z-index: 200; white-space: nowrap; }
+    #toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen">
+  <div class="l-logo">&#x1F3B2;</div>
+  <div class="l-title">StakeChain</div>
+  <div class="l-sub">Admin Panel &bull; Operator Access</div>
+  <div class="l-box">
+    <label for="pwInput">Password</label>
+    <input type="password" id="pwInput" placeholder="Enter admin password"
+           onkeydown="if(event.key==='Enter')tryLogin()">
+    <button class="l-btn" onclick="tryLogin()">Enter Admin</button>
+    <div class="l-err" id="loginErr">Incorrect password. Try again.</div>
+  </div>
+</div>
+
+<!-- MOBILE TOGGLE -->
+<button id="menuToggle" onclick="toggleSidebar()">&#x2630;</button>
+
+<!-- SIDEBAR -->
+<nav id="sidebar">
+  <div class="sb-brand">
+    <div class="sb-bname">&#x1F3B2; StakeChain</div>
+    <div class="sb-bsub">Admin Dashboard</div>
+  </div>
+  <div class="sb-nav">
+    <button class="sb-item active" id="sb-overview"       onclick="showPanel('overview')">
+      <span class="sb-ic">&#x1F4CA;</span> Overview
+    </button>
+    <button class="sb-item"        id="sb-players"        onclick="showPanel('players')">
+      <span class="sb-ic">&#x1F465;</span> Players
+    </button>
+    <button class="sb-item"        id="sb-history"        onclick="showPanel('history')">
+      <span class="sb-ic">&#x1F3B2;</span> Game History
+    </button>
+    <button class="sb-item"        id="sb-announcements"  onclick="showPanel('announcements')">
+      <span class="sb-ic">&#x1F4E2;</span> Announcements
+    </button>
+    <button class="sb-item"        id="sb-settings"       onclick="showPanel('settings')">
+      <span class="sb-ic">&#x2699;</span> Settings
+    </button>
+  </div>
+  <div class="sb-foot">
+    <button class="sb-item" onclick="doLogout()">
+      <span class="sb-ic">&#x1F6AA;</span> Logout
+    </button>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<div id="mainContent">
+
+  <!-- OVERVIEW -->
+  <div id="panel-overview" class="panel active">
+    <div class="panel-title">&#x1F4CA; Overview</div>
+    <div class="stat-cards">
+      <div class="stat-card"><div class="sc-ico">&#x1F465;</div><div class="sc-val" id="ovPlayers">&mdash;</div><div class="sc-lbl">Total Players</div></div>
+      <div class="stat-card"><div class="sc-ico">&#x1F3B2;</div><div class="sc-val" id="ovGames">&mdash;</div><div class="sc-lbl">Total Games</div></div>
+      <div class="stat-card"><div class="sc-ico">&#x1FA99;</div><div class="sc-val" id="ovChips">&mdash;</div><div class="sc-lbl">Chips in Circulation</div></div>
+      <div class="stat-card"><div class="sc-ico">&#x1F3C6;</div><div class="sc-val" id="ovBiggest">&mdash;</div><div class="sc-lbl">Biggest Win Ever</div></div>
+    </div>
+    <div class="sec-hdr">Recent Activity (live)</div>
+    <div id="activityFeed"></div>
+    <div class="sec-hdr">Games Played &mdash; Last 7 Days</div>
+    <div class="chart-wrap"><canvas id="gamesChart"></canvas></div>
+  </div>
+
+  <!-- PLAYERS -->
+  <div id="panel-players" class="panel">
+    <div class="panel-title">&#x1F465; Players</div>
+    <div class="filter-row">
+      <input type="text" class="inp" id="playerSearch" placeholder="Search by username or name&hellip;" oninput="filterPlayers()">
+      <button class="btn btn-gold" onclick="openBulkChips()">&#x1FA99; Add Chips to All</button>
+    </div>
+    <div id="bulkBox">
+      <div class="bulk-title">Add Chips to All Players</div>
+      <div class="flex-gap">
+        <input type="number" class="inp inp-sm" id="bulkAmt" placeholder="100" min="1">
+        <button class="btn btn-gold" onclick="confirmBulkChips()">Apply</button>
+        <button class="btn btn-gray" onclick="document.getElementById('bulkBox').style.display='none'">Cancel</button>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Username</th><th>Name</th><th>TG ID</th>
+            <th>Chips</th><th>Games</th><th>Wins</th><th>Joined</th><th>Status</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="playersTbody"></tbody>
+      </table>
+    </div>
+    <div class="pager" id="playerPager"></div>
+  </div>
+
+  <!-- GAME HISTORY -->
+  <div id="panel-history" class="panel">
+    <div class="panel-title">&#x1F3B2; Game History</div>
+    <div class="filter-row">
+      <input type="text" class="inp" id="histSearch"   placeholder="Search player&hellip;"  oninput="applyHistFilters()">
+      <input type="date" class="inp" id="histDateFrom"                                       onchange="applyHistFilters()">
+      <input type="date" class="inp" id="histDateTo"                                         onchange="applyHistFilters()">
+      <select class="inp" id="histWL" onchange="applyHistFilters()">
+        <option value="">All Results</option>
+        <option value="win">Wins Only</option>
+        <option value="loss">Losses Only</option>
+      </select>
+      <button class="btn btn-gold" onclick="exportCSV()">&#x2B07; Export CSV</button>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>Player</th><th>Bets</th><th>Dice Result</th><th>Total Bet</th><th>Payout</th><th>Net</th><th>Time</th></tr>
+        </thead>
+        <tbody id="histTbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ANNOUNCEMENTS -->
+  <div id="panel-announcements" class="panel">
+    <div class="panel-title">&#x1F4E2; Announcements</div>
+    <div class="form-card">
+      <h3>Send New Announcement</h3>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Title</label>
+          <input type="text" class="inp" id="annTitle"    placeholder="e.g. Maintenance Tonight">
+        </div>
+        <div class="form-group">
+          <label>Image URL (optional)</label>
+          <input type="url"  class="inp" id="annImageUrl" placeholder="https://&hellip;">
+        </div>
+        <div class="form-group full">
+          <label>Message</label>
+          <textarea class="inp" id="annMessage" placeholder="Write your announcement here&hellip;"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Button Label (optional)</label>
+          <input type="text" class="inp" id="annBtnLabel" placeholder="e.g. Learn More">
+        </div>
+        <div class="form-group">
+          <label>Button URL (optional)</label>
+          <input type="url"  class="inp" id="annBtnUrl"   placeholder="https://&hellip;">
+        </div>
+      </div>
+      <div style="margin-top:14px;">
+        <button class="btn btn-gold btn-lg" onclick="sendAnnouncement()">&#x1F4E4; Send Announcement</button>
+      </div>
+    </div>
+    <div class="sec-hdr">Announcement History</div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Title</th><th>Message</th><th>Sent</th><th>Action</th></tr></thead>
+        <tbody id="annTbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div id="panel-settings" class="panel">
+    <div class="panel-title">&#x2699; Settings</div>
+    <div class="settings-list">
+
+      <div class="setting-row">
+        <div>
+          <span class="si-lbl">Starting Chips for New Players</span>
+          <span class="si-sub">Chips awarded when a new user joins for the first time.</span>
+        </div>
+        <div class="flex-gap">
+          <input type="number" class="inp inp-sm" id="setStartChips" value="1000" min="1">
+          <button class="btn btn-gold" onclick="saveSetting('startingChips', parseInt(document.getElementById('setStartChips').value,10))">Save</button>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <span class="si-lbl">Minimum Bet Amount</span>
+          <span class="si-sub">Minimum chips required per color bet. Enforced in the Mini App.</span>
+        </div>
+        <div class="flex-gap">
+          <input type="number" class="inp inp-sm" id="setMinBet" value="10" min="1">
+          <button class="btn btn-gold" onclick="saveSetting('minBet', parseInt(document.getElementById('setMinBet').value,10))">Save</button>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <span class="si-lbl">Maintenance Mode</span>
+          <span class="si-sub">When ON, all Mini App users see a maintenance screen instead of the game.</span>
+        </div>
+        <div class="flex-gap">
+          <div class="toggle" id="maintToggle" onclick="toggleMaintenance()"></div>
+          <span id="maintLabel" style="font-size:12px;color:var(--mut)">OFF</span>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <span class="si-lbl">Admin Password</span>
+          <span class="si-sub">Change the password used to access this admin panel.</span>
+        </div>
+        <div class="flex-gap">
+          <input type="password" class="inp" id="setPw"    placeholder="New password" style="width:150px;">
+          <input type="password" class="inp" id="setPwCfm" placeholder="Confirm"      style="width:150px;">
+          <button class="btn btn-gold" onclick="changeAdminPw()">Update</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div><!-- /mainContent -->
+
+<div id="toast"></div>
+
+<!-- ══════════════════════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════════════════════ -->
+<script>
+/* ─────────────────────────────────────────────────────────
+   TODO: Replace placeholder values with your real Firebase config.
+   ───────────────────────────────────────────────────────── */
+var firebaseConfig = {
+  apiKey:            "AIzaSyCs0PVgC5nmiJjVQlslI9l_l-o4Ida_8bw",
+  authDomain:        "stakechain-9707e.firebaseapp.com",
+  projectId:         "stakechain-9707e",
+  storageBucket:     "stakechain-9707e.firebasestorage.app",
+  messagingSenderId: "425240338938",
+  appId:             "1:425240338938:web:b836ebb159834f733a8443"
+};
+
+/* Default admin password. Can be overridden by adminConfig/settings.adminPassword in Firestore.
+   For production use, store only a hashed version and compare hashes.            */
+var ADMIN_SECRET = "StakeChain@Admin2025";
+
+firebase.initializeApp(firebaseConfig);
+var db = firebase.firestore();
+
+/* ─────────────────────────────────────────────────────────
+   DOM helpers — all user-supplied data goes through textContent
+   or setAttribute; never concatenated into innerHTML
+   ───────────────────────────────────────────────────────── */
+
+/** Create an element, optionally set its textContent and className */
+function el(tag, text, cls) {
+  var e = document.createElement(tag);
+  if (text !== undefined && text !== null) e.textContent = String(text);
+  if (cls) e.className = cls;
+  return e;
+}
+
+/** Replace all children of a parent with a single "loading" or "empty" row */
+function setTbodyMsg(tbody, msg, colSpan) {
+  while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+  var tr = document.createElement('tr');
+  tr.className = 'empty-row';
+  var td = el('td', msg);
+  td.colSpan = colSpan || 1;
+  tr.appendChild(td);
+  tbody.appendChild(tr);
+}
+
+/* ─────────────────────────────────────────────────────────
+   AUTH
+   ───────────────────────────────────────────────────────── */
+var _adminPw = ADMIN_SECRET; // may be replaced by Firestore value on page load
+
+function tryLogin() {
+  var pw = document.getElementById('pwInput').value;
+  if (pw === _adminPw) {
+    document.getElementById('loginScreen').classList.add('hidden');
+    bootDashboard();
+  } else {
+    var err = document.getElementById('loginErr');
+    err.style.display = 'block';
+    document.getElementById('pwInput').value = '';
+    setTimeout(function() { err.style.display = 'none'; }, 3000);
+  }
+}
+
+function doLogout() {
+  document.getElementById('loginScreen').classList.remove('hidden');
+  document.getElementById('pwInput').value = '';
+}
+
+/* ─────────────────────────────────────────────────────────
+   BOOT
+   ───────────────────────────────────────────────────────── */
+function bootDashboard() {
+  loadAdminSettings();
+  loadOverview();
+  listenActivity();
+  loadChart();
+  showPanel('overview');
+}
+
+/* ─────────────────────────────────────────────────────────
+   ADMIN SETTINGS
+   ───────────────────────────────────────────────────────── */
+function loadAdminSettings() {
+  db.collection('adminConfig').doc('settings').get()
+    .then(function(snap) {
+      if (!snap.exists) return;
+      var d = snap.data();
+      if (d.startingChips)   document.getElementById('setStartChips').value = d.startingChips;
+      if (d.minBet)          document.getElementById('setMinBet').value      = d.minBet;
+      if (d.maintenanceMode) setMaintUI(true);
+      if (d.adminPassword)   _adminPw = d.adminPassword;
+    })
+    .catch(function(e) { console.error('loadAdminSettings:', e); });
+}
+
+function saveSetting(key, value) {
+  if (isNaN(value) || value < 1) return showToast('Invalid value.');
+  var data = {};
+  data[key] = value;
+  db.collection('adminConfig').doc('settings').set(data, { merge: true })
+    .then(function() { showToast('Saved: ' + key + ' = ' + value); })
+    .catch(function(e) { showToast('Error: ' + e.message); });
+}
+
+/* ─────────────────────────────────────────────────────────
+   OVERVIEW
+   ───────────────────────────────────────────────────────── */
+function loadOverview() {
+  db.collection('users').get()
+    .then(function(snap) {
+      var chips = 0;
+      snap.forEach(function(doc) { chips += (doc.data().chips || 0); });
+      document.getElementById('ovPlayers').textContent = snap.size;
+      document.getElementById('ovChips').textContent   = chips;
+    }).catch(function(e) { console.error('ovPlayers:', e); });
+
+  db.collection('gameHistory').get()
+    .then(function(snap) {
+      var biggest = 0;
+      snap.forEach(function(doc) {
+        var n = doc.data().netResult || 0;
+        if (n > biggest) biggest = n;
+      });
+      document.getElementById('ovGames').textContent   = snap.size;
+      document.getElementById('ovBiggest').textContent = biggest;
+    }).catch(function(e) { console.error('ovGames:', e); });
+}
+
+/* ─────────────────────────────────────────────────────────
+   LIVE ACTIVITY FEED
+   ───────────────────────────────────────────────────────── */
+function listenActivity() {
+  db.collection('gameHistory')
+    .orderBy('timestamp','desc')
+    .limit(10)
+    .onSnapshot(function(snap) {
+      var feed = document.getElementById('activityFeed');
+      while (feed.firstChild) feed.removeChild(feed.firstChild);
+
+      if (snap.empty) {
+        var empty = el('div', 'No games yet.', 'feed-item');
+        empty.style.color = 'var(--mut)';
+        feed.appendChild(empty); return;
+      }
+
+      snap.forEach(function(doc) {
+        var d    = doc.data();
+        var item = el('div', null, 'feed-item');
+
+        var dot  = el('div');
+        dot.className          = 'feed-dot';
+        dot.style.background   = d.netResult > 0 ? 'var(--grn)' : 'var(--red)';
+
+        var name = el('div', d.username || 'Player', 'feed-name');
+
+        var net  = el('div', (d.netResult > 0 ? '+' : '') + (d.netResult || 0), 'feed-net ' + (d.netResult > 0 ? 'win-col' : 'loss-col'));
+
+        var ts   = el('div', d.timestamp ? fmtTime(d.timestamp.toDate()) : '', 'feed-time');
+
+        item.appendChild(dot);
+        item.appendChild(name);
+        item.appendChild(net);
+        item.appendChild(ts);
+        feed.appendChild(item);
+      });
+    }, function(e) { console.error('activityFeed:', e); });
+}
+
+/* ─────────────────────────────────────────────────────────
+   CHART — games per day, last 7 days
+   ───────────────────────────────────────────────────────── */
+var _chart = null;
+
+function loadChart() {
+  var now = new Date(), labels = [], dayCounts = {};
+  for (var i = 6; i >= 0; i--) {
+    var d = new Date(now);
+    d.setDate(d.getDate() - i);
+    var k = d.toISOString().slice(0,10);
+    labels.push(k.slice(5)); // MM-DD
+    dayCounts[k] = 0;
+  }
+  var cutoff = new Date(now);
+  cutoff.setDate(cutoff.getDate() - 6);
+  cutoff.setHours(0,0,0,0);
+
+  db.collection('gameHistory')
+    .where('timestamp','>=', firebase.firestore.Timestamp.fromDate(cutoff))
+    .get()
+    .then(function(snap) {
+      snap.forEach(function(doc) {
+        var ts = doc.data().timestamp;
+        if (ts) {
+          var day = ts.toDate().toISOString().slice(0,10);
+          if (dayCounts.hasOwnProperty(day)) dayCounts[day]++;
+        }
+      });
+      var counts = Object.keys(dayCounts).sort().map(function(k) { return dayCounts[k]; });
+      if (_chart) _chart.destroy();
+      _chart = new Chart(document.getElementById('gamesChart').getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Games Played',
+            data: counts,
+            backgroundColor: 'rgba(255,215,0,.6)',
+            borderColor: '#FFD700', borderWidth: 1, borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { labels: { color: '#e0e0e0', font: { size: 11 } } } },
+          scales: {
+            x: { ticks: { color: '#8899aa' }, grid: { color: 'rgba(255,255,255,.05)' } },
+            y: { ticks: { color: '#8899aa', stepSize: 1 }, grid: { color: 'rgba(255,255,255,.05)' }, beginAtZero: true }
+          }
+        }
+      });
+    })
+    .catch(function(e) { console.error('loadChart:', e); });
+}
+
+/* ─────────────────────────────────────────────────────────
+   PLAYERS
+   ───────────────────────────────────────────────────────── */
+var _allPlayers = [], _filtPlayers = [], _playerPage = 1;
+var PAGE_SIZE = 20;
+
+function loadPlayers() {
+  setTbodyMsg(document.getElementById('playersTbody'), 'Loading\u2026', 9);
+  db.collection('users').orderBy('chips','desc').get()
+    .then(function(snap) {
+      _allPlayers = [];
+      snap.forEach(function(doc) { _allPlayers.push({ id: doc.id, data: doc.data() }); });
+      _filtPlayers = _allPlayers.slice();
+      _playerPage  = 1;
+      renderPlayers();
+    })
+    .catch(function(e) {
+      setTbodyMsg(document.getElementById('playersTbody'), 'Failed to load.', 9);
+      console.error('loadPlayers:', e);
+    });
+}
+
+function filterPlayers() {
+  var q = document.getElementById('playerSearch').value.trim().toLowerCase();
+  _filtPlayers = q
+    ? _allPlayers.filter(function(p) {
+        return (p.data.username || '').toLowerCase().includes(q)
+            || (p.data.firstName || '').toLowerCase().includes(q);
+      })
+    : _allPlayers.slice();
+  _playerPage = 1;
+  renderPlayers();
+}
+
+function renderPlayers() {
+  var tbody = document.getElementById('playersTbody');
+  var pager = document.getElementById('playerPager');
+  var total = _filtPlayers.length;
+  var pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  var start = (_playerPage - 1) * PAGE_SIZE;
+  var slice = _filtPlayers.slice(start, start + PAGE_SIZE);
+
+  while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+  if (slice.length === 0) {
+    setTbodyMsg(tbody, 'No players found.', 9);
+  } else {
+    slice.forEach(function(item) { tbody.appendChild(buildPlayerRow(item)); });
+  }
+
+  while (pager.firstChild) pager.removeChild(pager.firstChild);
+  for (var i = 1; i <= pages; i++) {
+    (function(pg) {
+      var btn    = el('button', String(pg), 'btn btn-gray' + (pg === _playerPage ? ' cur-pg' : ''));
+      btn.onclick = function() { _playerPage = pg; renderPlayers(); };
+      pager.appendChild(btn);
+    })(i);
+  }
+}
+
+function buildPlayerRow(item) {
+  var d   = item.data, banned = !!d.banned;
+  var tr  = document.createElement('tr');
+
+  var cells = [
+    '@' + (d.username   || '\u2014'),
+    d.firstName || '\u2014',
+    item.id,
+    d.chips      || 0,
+    d.totalGames || 0,
+    d.totalWins  || 0,
+    d.createdAt ? fmtDate(d.createdAt.toDate()) : '\u2014'
+  ];
+  cells.forEach(function(val, idx) {
+    var td = el('td', val);
+    if (idx === 3) td.className = 'chip-badge';
+    tr.appendChild(td);
+  });
+
+  // Status
+  var statusTd = document.createElement('td');
+  var badge = el('span', banned ? 'BANNED' : 'OK', banned ? 'ban-badge' : 'ok-badge');
+  statusTd.appendChild(badge);
+  tr.appendChild(statusTd);
+
+  // Actions
+  var actTd = document.createElement('td');
+  actTd.style.whiteSpace = 'nowrap';
+
+  var chipInp = document.createElement('input');
+  chipInp.type        = 'number';
+  chipInp.className   = 'inp';
+  chipInp.style.width = '70px';
+  chipInp.style.marginRight = '4px';
+  chipInp.placeholder = 'Chips';
+  chipInp.min         = '0';
+
+  var saveBtn = el('button', 'Save', 'btn btn-gold');
+  saveBtn.style.marginRight = '4px';
+  saveBtn.onclick = (function(id, input) {
+    return function() {
+      var v = parseInt(input.value, 10);
+      if (isNaN(v) || v < 0) return showToast('Invalid chip value.');
+      db.collection('users').doc(id).update({ chips: v })
+        .then(function() { showToast('Chips updated!'); loadPlayers(); })
+        .catch(function(e) { showToast('Error: ' + e.message); });
+    };
+  })(item.id, chipInp);
+
+  var banBtn = el('button', banned ? 'Unban' : 'Ban', banned ? 'btn btn-grn' : 'btn btn-red');
+  banBtn.onclick = (function(id, isBanned) {
+    return function() {
+      db.collection('users').doc(id).update({ banned: !isBanned })
+        .then(function() { showToast(isBanned ? 'Player unbanned.' : 'Player banned.'); loadPlayers(); })
+        .catch(function(e) { showToast('Error: ' + e.message); });
+    };
+  })(item.id, banned);
+
+  actTd.appendChild(chipInp);
+  actTd.appendChild(saveBtn);
+  actTd.appendChild(banBtn);
+  tr.appendChild(actTd);
+  return tr;
+}
+
+function openBulkChips() {
+  document.getElementById('bulkBox').style.display = 'block';
+  document.getElementById('bulkAmt').focus();
+}
+
+function confirmBulkChips() {
+  var amt = parseInt(document.getElementById('bulkAmt').value, 10);
+  if (!amt || amt < 1) return showToast('Enter a valid chip amount.');
+  if (!confirm('Add ' + amt + ' chips to ALL players?')) return;
+  db.collection('users').get()
+    .then(function(snap) {
+      var batch = db.batch();
+      snap.forEach(function(doc) {
+        batch.update(doc.ref, { chips: firebase.firestore.FieldValue.increment(amt) });
+      });
+      return batch.commit();
+    })
+    .then(function() {
+      showToast('Added ' + amt + ' chips to ' + _allPlayers.length + ' players!');
+      document.getElementById('bulkBox').style.display = 'none';
+      loadPlayers();
+    })
+    .catch(function(e) { showToast('Error: ' + e.message); });
+}
+
+/* ─────────────────────────────────────────────────────────
+   GAME HISTORY
+   ───────────────────────────────────────────────────────── */
+var _allHistory = [];
+
+function loadHistory() {
+  setTbodyMsg(document.getElementById('histTbody'), 'Loading\u2026', 7);
+  db.collection('gameHistory').orderBy('timestamp','desc').limit(500).get()
+    .then(function(snap) {
+      _allHistory = [];
+      snap.forEach(function(doc) { _allHistory.push(doc.data()); });
+      applyHistFilters();
+    })
+    .catch(function(e) {
+      setTbodyMsg(document.getElementById('histTbody'), 'Failed to load.', 7);
+      console.error('loadHistory:', e);
+    });
+}
+
+function applyHistFilters() {
+  var q    = (document.getElementById('histSearch').value  || '').toLowerCase();
+  var from = document.getElementById('histDateFrom').value;
+  var to   = document.getElementById('histDateTo').value;
+  var wl   = document.getElementById('histWL').value;
+
+  var filtered = _allHistory.filter(function(d) {
+    if (q  && !(d.username || '').toLowerCase().includes(q)) return false;
+    if (wl === 'win'  && d.netResult <= 0) return false;
+    if (wl === 'loss' && d.netResult >= 0) return false;
+    if (from || to) {
+      var ts = d.timestamp ? d.timestamp.toDate() : null;
+      if (!ts) return false;
+      if (from && ts < new Date(from + 'T00:00:00')) return false;
+      if (to   && ts > new Date(to   + 'T23:59:59')) return false;
+    }
+    return true;
+  });
+  renderHistTable(filtered);
+}
+
+function renderHistTable(rows) {
+  var tbody = document.getElementById('histTbody');
+  while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+  if (!rows.length) { setTbodyMsg(tbody, 'No records.', 7); return; }
+
+  rows.forEach(function(d) {
+    var tr = document.createElement('tr');
+
+    var betsArr = [];
+    if (d.bets) {
+      ['red','white','yellow','blue'].forEach(function(c) {
+        if (d.bets[c] > 0) betsArr.push(c.charAt(0).toUpperCase() + ':' + d.bets[c]);
+      });
+    }
+    var diceStr = Array.isArray(d.diceResult) ? d.diceResult.join(' / ') : '\u2014';
+
+    var tdNet = el('td', (d.netResult > 0 ? '+' : '') + (d.netResult || 0));
+    tdNet.className = d.netResult > 0 ? 'win-col' : 'loss-col';
+
+    var tdTime = el('td', d.timestamp ? fmtTime(d.timestamp.toDate()) : '\u2014');
+    tdTime.style.fontSize = '11px';
+
+    var tds = [
+      el('td', '@' + (d.username || '\u2014')),
+      el('td', betsArr.join(' / ') || '\u2014'),
+      el('td', diceStr),
+      el('td', d.totalBet    || 0),
+      el('td', d.totalPayout || 0),
+      tdNet, tdTime
+    ];
+    tds.forEach(function(td) { tr.appendChild(td); });
+    tbody.appendChild(tr);
+  });
+}
+
+/* ─────────────────────────────────────────────────────────
+   CSV EXPORT — builds client-side, no server needed
+   ───────────────────────────────────────────────────────── */
+function exportCSV() {
+  if (!_allHistory.length) return showToast('No data to export.');
+  var lines = ['"Player","Bets","Dice","Total Bet","Payout","Net","Time"'];
+  _allHistory.forEach(function(d) {
+    var bets = [];
+    if (d.bets) ['red','white','yellow','blue'].forEach(function(c) {
+      if (d.bets[c] > 0) bets.push(c + ':' + d.bets[c]);
+    });
+    var dice = Array.isArray(d.diceResult) ? d.diceResult.join('|') : '';
+    var time = d.timestamp ? d.timestamp.toDate().toISOString() : '';
+    lines.push([
+      '"' + (d.username || '') + '"',
+      '"' + bets.join('|') + '"',
+      '"' + dice + '"',
+      d.totalBet || 0,
+      d.totalPayout || 0,
+      d.netResult || 0,
+      '"' + time + '"'
+    ].join(','));
+  });
+  var blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href   = url;
+  a.download = 'stakechain_history_' + Date.now() + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ─────────────────────────────────────────────────────────
+   ANNOUNCEMENTS
+   ───────────────────────────────────────────────────────── */
+function sendAnnouncement() {
+  var title   = document.getElementById('annTitle').value.trim();
+  var message = document.getElementById('annMessage').value.trim();
+  if (!title || !message) return showToast('Title and message are required.');
+
+  var data = {
+    title:     title,
+    message:   message,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  var imageUrl = document.getElementById('annImageUrl').value.trim();
+  var btnLabel = document.getElementById('annBtnLabel').value.trim();
+  var btnUrl   = document.getElementById('annBtnUrl').value.trim();
+  if (imageUrl) data.imageUrl    = imageUrl;
+  if (btnLabel) data.buttonLabel = btnLabel;
+  if (btnUrl)   data.buttonUrl   = btnUrl;
+
+  db.collection('announcements').add(data)
+    .then(function() {
+      showToast('Announcement sent!');
+      ['annTitle','annMessage','annImageUrl','annBtnLabel','annBtnUrl'].forEach(function(id) {
+        document.getElementById(id).value = '';
+      });
+      loadAnnouncements();
+    })
+    .catch(function(e) { showToast('Error: ' + e.message); });
+}
+
+function loadAnnouncements() {
+  var tbody = document.getElementById('annTbody');
+  setTbodyMsg(tbody, 'Loading\u2026', 4);
+
+  db.collection('announcements').orderBy('createdAt','desc').limit(50).get()
+    .then(function(snap) {
+      while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+      if (snap.empty) { setTbodyMsg(tbody, 'No announcements yet.', 4); return; }
+
+      snap.forEach(function(doc) {
+        var d  = doc.data();
+        var tr = document.createElement('tr');
+
+        var tdTitle = el('td', d.title || '\u2014');
+        tdTitle.style.fontWeight = '600';
+
+        var tdMsg = el('td', d.message || '\u2014');
+        tdMsg.style.maxWidth    = '300px';
+        tdMsg.style.overflow    = 'hidden';
+        tdMsg.style.textOverflow= 'ellipsis';
+        tdMsg.style.whiteSpace  = 'nowrap';
+
+        var tdTime = el('td', d.createdAt ? fmtTime(d.createdAt.toDate()) : '\u2014');
+        tdTime.style.fontSize = '11px';
+
+        var tdAct  = document.createElement('td');
+        var delBtn = el('button', 'Delete', 'btn btn-red');
+        // Store the doc ID in a data attribute — safe, no HTML injection
+        delBtn.dataset.docId = doc.id;
+        delBtn.onclick = (function(docId, docTitle) {
+          return function() {
+            if (!confirm('Delete announcement "' + docTitle + '"?')) return;
+            db.collection('announcements').doc(docId).delete()
+              .then(function() { showToast('Deleted.'); loadAnnouncements(); })
+              .catch(function(e) { showToast('Error: ' + e.message); });
+          };
+        })(doc.id, d.title || 'this announcement');
+        tdAct.appendChild(delBtn);
+
+        [tdTitle, tdMsg, tdTime, tdAct].forEach(function(td) { tr.appendChild(td); });
+        tbody.appendChild(tr);
+      });
+    })
+    .catch(function(e) { console.error('loadAnnouncements:', e); });
+}
+
+/* ─────────────────────────────────────────────────────────
+   SETTINGS — maintenance & password
+   ───────────────────────────────────────────────────────── */
+var _maintOn = false;
+
+function setMaintUI(on) {
+  _maintOn = on;
+  var tog = document.getElementById('maintToggle');
+  var lbl = document.getElementById('maintLabel');
+  if (on) { tog.classList.add('on');    lbl.textContent = 'ON';  lbl.style.color = 'var(--grn)'; }
+  else    { tog.classList.remove('on'); lbl.textContent = 'OFF'; lbl.style.color = 'var(--mut)'; }
+}
+
+function toggleMaintenance() {
+  var newVal = !_maintOn;
+  db.collection('adminConfig').doc('settings').set({ maintenanceMode: newVal }, { merge: true })
+    .then(function() { setMaintUI(newVal); showToast('Maintenance mode: ' + (newVal ? 'ON' : 'OFF')); })
+    .catch(function(e) { showToast('Error: ' + e.message); });
+}
+
+function changeAdminPw() {
+  var pw  = document.getElementById('setPw').value;
+  var cfm = document.getElementById('setPwCfm').value;
+  if (!pw)           return showToast('Enter a new password.');
+  if (pw !== cfm)    return showToast('Passwords do not match.');
+  if (pw.length < 8) return showToast('Password must be at least 8 characters.');
+  db.collection('adminConfig').doc('settings').set({ adminPassword: pw }, { merge: true })
+    .then(function() {
+      _adminPw = pw;
+      document.getElementById('setPw').value    = '';
+      document.getElementById('setPwCfm').value = '';
+      showToast('Password updated. Store it safely!');
+    })
+    .catch(function(e) { showToast('Error: ' + e.message); });
+}
+
+/* ─────────────────────────────────────────────────────────
+   NAVIGATION
+   ───────────────────────────────────────────────────────── */
+function showPanel(name) {
+  document.querySelectorAll('.panel').forEach(function(p)  { p.classList.remove('active'); });
+  document.querySelectorAll('.sb-item').forEach(function(b) { b.classList.remove('active'); });
+  document.getElementById('panel-' + name).classList.add('active');
+  var sbBtn = document.getElementById('sb-' + name);
+  if (sbBtn) sbBtn.classList.add('active');
+
+  if (name === 'players')       loadPlayers();
+  if (name === 'history')       loadHistory();
+  if (name === 'announcements') loadAnnouncements();
+  if (name === 'overview')      { loadOverview(); loadChart(); }
+  if (window.innerWidth <= 700) document.getElementById('sidebar').classList.remove('open');
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+}
+
+/* ─────────────────────────────────────────────────────────
+   TOAST
+   ───────────────────────────────────────────────────────── */
+var _toastTimer = null;
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(function() { t.classList.remove('show'); }, 3000);
+}
+
+/* ─────────────────────────────────────────────────────────
+   DATE HELPERS
+   ───────────────────────────────────────────────────────── */
+function fmtTime(date) {
+  if (!(date instanceof Date)) return '\u2014';
+  return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+}
+function fmtDate(date) {
+  if (!(date instanceof Date)) return '\u2014';
+  return date.toLocaleDateString();
+}
+
+/* ─────────────────────────────────────────────────────────
+   Pre-fetch admin password from Firestore so a previously
+   changed password persists without a code deploy.
+   ───────────────────────────────────────────────────────── */
+(function() {
+  db.collection('adminConfig').doc('settings').get()
+    .then(function(snap) {
+      if (snap.exists && snap.data().adminPassword) _adminPw = snap.data().adminPassword;
+    })
+    .catch(function() { /* fall back to ADMIN_SECRET constant */ });
+})();
+</script>
+</body>
+</html>

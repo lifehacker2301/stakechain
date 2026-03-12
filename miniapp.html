@@ -1,0 +1,1457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>StakeChain — Play Smart. Win Big.</title>
+
+  <!-- Telegram WebApp SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <!-- Firebase 10 Compat SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    /* ════════════════════════════════════════════════
+       DESIGN TOKENS
+    ════════════════════════════════════════════════ */
+    :root {
+      --felt:        #1a472a;
+      --felt-light:  #1e5232;
+      --bg-dark:     #0d1f14;
+      --bg-card:     #162b1c;
+      --gold:        #FFD700;
+      --gold-dark:   #b8960c;
+      --text:        #f0f0e8;
+      --muted:       #7a9b7e;
+      --red:         #ff4444;
+      --white-col:   #f0f0f0;
+      --yellow:      #FFD700;
+      --blue:        #4488ff;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      background: var(--bg-dark);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ════════════════════════════════════════════════
+       LOADING SCREEN
+    ════════════════════════════════════════════════ */
+    #loadingScreen {
+      position: fixed; inset: 0;
+      background: var(--bg-dark);
+      z-index: 999;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 14px;
+      transition: opacity 0.4s;
+    }
+    #loadingScreen.hidden { opacity: 0; pointer-events: none; }
+    .ld-icon  { font-size: 56px; animation: ldPulse 1.2s ease-in-out infinite alternate; }
+    .ld-name  { color: var(--gold); font-size: 26px; font-weight: 900; letter-spacing: 3px; }
+    .ld-tag   { color: var(--muted); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; }
+    .ld-spin  { width: 34px; height: 34px; border: 3px solid rgba(255,215,0,.2);
+                border-top-color: var(--gold); border-radius: 50%; animation: spin .8s linear infinite; }
+    @keyframes ldPulse { from { transform: scale(.9); opacity: .7; } to { transform: scale(1.05); opacity: 1; } }
+    @keyframes spin    { to { transform: rotate(360deg); } }
+
+    /* ════════════════════════════════════════════════
+       FULLSCREEN MESSAGE (ban / maintenance)
+    ════════════════════════════════════════════════ */
+    .fullscreen-msg {
+      position: fixed; inset: 0; background: var(--bg-dark); z-index: 998;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 30px; text-align: center; gap: 14px;
+    }
+    .fullscreen-msg.hidden { display: none; }
+    .fsm-icon  { font-size: 64px; }
+    .fsm-title { color: var(--gold); font-size: 22px; font-weight: 800; }
+    .fsm-body  { color: var(--muted); font-size: 14px; line-height: 1.6; max-width: 300px; }
+
+    /* ════════════════════════════════════════════════
+       ANNOUNCEMENT BANNER
+    ════════════════════════════════════════════════ */
+    #annBanner {
+      background: linear-gradient(135deg, #1e3a28, #162b1c);
+      border-bottom: 2px solid var(--gold);
+      padding: 10px 14px;
+      display: flex; align-items: flex-start; gap: 10px;
+    }
+    #annBanner.hidden { display: none; }
+    .ann-body  { flex: 1; }
+    .ann-title { font-size: 13px; font-weight: 700; color: var(--gold); margin-bottom: 3px; }
+    .ann-msg   { font-size: 12px; color: var(--text); line-height: 1.4; }
+    .ann-img   { width: 100%; border-radius: 8px; margin-top: 8px; display: none; }
+    #annBtn    { display: none; margin-top: 6px; font-size: 11px; color: var(--gold);
+                 text-decoration: underline; }
+    .ann-close { color: var(--muted); font-size: 20px; cursor: pointer; line-height: 1;
+                 flex-shrink: 0; padding: 2px; }
+
+    /* ════════════════════════════════════════════════
+       HEADER
+    ════════════════════════════════════════════════ */
+    #header {
+      background: linear-gradient(135deg, #0d1f14 0%, #162b1c 100%);
+      border-bottom: 2px solid var(--gold);
+      padding: 10px 14px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 2px 20px rgba(255,215,0,.12);
+    }
+    .hdr-left  { display: flex; align-items: center; gap: 8px; }
+    .hdr-logo-fb {
+      width: 36px; height: 36px; border-radius: 8px;
+      background: linear-gradient(135deg, var(--gold), var(--gold-dark));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; font-weight: 900; color: #0d1f14; letter-spacing: -1px;
+    }
+    .hdr-titles { display: flex; flex-direction: column; line-height: 1.15; }
+    .hdr-name   { font-size: 16px; font-weight: 900; color: var(--gold); letter-spacing: 1px; }
+    .hdr-tag    { font-size: 9px;  color: var(--muted); letter-spacing: .5px; }
+    .hdr-right  { display: flex; align-items: center; gap: 8px; }
+    .hdr-avatar {
+      width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--gold);
+      object-fit: cover; display: none;
+    }
+    .hdr-avatar-fb {
+      width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--gold);
+      background: linear-gradient(135deg, #2a6a3e, #1a472a);
+      display: flex; align-items: center; justify-content: center; font-size: 16px;
+    }
+    .hdr-info    { display: flex; flex-direction: column; align-items: flex-end; }
+    .hdr-user    { font-size: 11px; font-weight: 600; color: var(--text); }
+    .hdr-balance { display: flex; align-items: center; gap: 3px; font-size: 13px;
+                   font-weight: 800; color: var(--gold); }
+
+    /* ════════════════════════════════════════════════
+       PAGE SYSTEM
+    ════════════════════════════════════════════════ */
+    .page        { display: none; }
+    .page.active { display: block; }
+
+    /* ════════════════════════════════════════════════
+       PLAY PAGE
+    ════════════════════════════════════════════════ */
+    #page-play { padding: 12px 12px 84px; }
+
+    .table-wrap {
+      background: linear-gradient(160deg, #1a472a, #0f2d1a);
+      border: 3px solid var(--gold);
+      border-radius: 20px;
+      padding: 18px 14px 14px;
+      margin-bottom: 14px;
+      box-shadow: 0 0 40px rgba(255,215,0,.08), inset 0 0 50px rgba(0,0,0,.3);
+      position: relative; overflow: hidden;
+    }
+    .table-wrap::before {
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(ellipse at 50% 0%, rgba(255,215,0,.07), transparent 60%);
+      pointer-events: none;
+    }
+    .table-label {
+      text-align: center; font-size: 10px; letter-spacing: 3px;
+      color: var(--gold); opacity: .6; margin-bottom: 16px; text-transform: uppercase;
+    }
+
+    /* Dice */
+    .dice-row { display: flex; justify-content: center; gap: 12px; margin-bottom: 14px; }
+    .die {
+      width: 88px; height: 88px; border-radius: 16px;
+      border: 3px solid rgba(255,255,255,.12);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
+      transition: all .1s; background: #2a6a3e; color: rgba(255,255,255,.6);
+      box-shadow: 0 4px 18px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.08);
+    }
+    .die-emoji { font-size: 30px; margin-bottom: 5px; line-height: 1; }
+    .die-label { font-size: 9px; letter-spacing: 1px; }
+
+    /* Color variants */
+    .dc-red    { background: linear-gradient(145deg,#cc2222,#ff4444); border-color:#ff6666; color:#fff;
+                 box-shadow: 0 4px 20px rgba(255,68,68,.5),  inset 0 1px 0 rgba(255,255,255,.2); }
+    .dc-white  { background: linear-gradient(145deg,#cccccc,#f0f0f0); border-color:#ffffff; color:#333;
+                 box-shadow: 0 4px 20px rgba(240,240,240,.3), inset 0 1px 0 rgba(255,255,255,.5); }
+    .dc-yellow { background: linear-gradient(145deg,#b8960c,#FFD700); border-color:#ffe44d; color:#333;
+                 box-shadow: 0 4px 20px rgba(255,215,0,.5),  inset 0 1px 0 rgba(255,255,255,.2); }
+    .dc-blue   { background: linear-gradient(145deg,#2255cc,#4488ff); border-color:#66aaff; color:#fff;
+                 box-shadow: 0 4px 20px rgba(68,136,255,.5), inset 0 1px 0 rgba(255,255,255,.2); }
+
+    .die.rolling { animation: dieRoll .09s infinite; }
+    @keyframes dieRoll {
+      0%   { transform: scale(.93) rotate(-3deg); }
+      50%  { transform: scale(1.07) rotate(3deg); }
+      100% { transform: scale(.93) rotate(-3deg); }
+    }
+    .result-msg { text-align: center; font-size: 13px; min-height: 18px; color: var(--muted); }
+
+    /* ════════════════════════════════════════════════
+       BETTING PANEL
+    ════════════════════════════════════════════════ */
+    .bet-panel {
+      background: var(--bg-card);
+      border: 1px solid rgba(255,215,0,.18);
+      border-radius: 16px; padding: 14px;
+    }
+    .panel-title {
+      text-align: center; font-size: 10px; letter-spacing: 2px;
+      color: var(--muted); text-transform: uppercase; margin-bottom: 12px;
+    }
+    .bet-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+    .bet-btn {
+      border-radius: 12px; padding: 10px 8px;
+      border: 2px solid transparent;
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      cursor: pointer; transition: all .2s;
+    }
+    .bet-btn.bc-red    { background: rgba(255,68,68,.09);   border-color: rgba(255,68,68,.25); }
+    .bet-btn.bc-white  { background: rgba(240,240,240,.06); border-color: rgba(240,240,240,.18); }
+    .bet-btn.bc-yellow { background: rgba(255,215,0,.07);   border-color: rgba(255,215,0,.25); }
+    .bet-btn.bc-blue   { background: rgba(68,136,255,.09);  border-color: rgba(68,136,255,.25); }
+    .bet-btn.active.bc-red    { border-color: #ff4444; box-shadow: 0 0 14px rgba(255,68,68,.35); }
+    .bet-btn.active.bc-white  { border-color: #f0f0f0; box-shadow: 0 0 14px rgba(240,240,240,.25); }
+    .bet-btn.active.bc-yellow { border-color: #FFD700; box-shadow: 0 0 14px rgba(255,215,0,.35); }
+    .bet-btn.active.bc-blue   { border-color: #4488ff; box-shadow: 0 0 14px rgba(68,136,255,.35); }
+    .bet-color-label { font-size: 13px; font-weight: 700; }
+    .bet-color-label.lc-red    { color: #ff4444; }
+    .bet-color-label.lc-white  { color: #f0f0f0; }
+    .bet-color-label.lc-yellow { color: #FFD700; }
+    .bet-color-label.lc-blue   { color: #4488ff; }
+
+    /* Current bet amount shown on color card */
+    .bet-amount-display {
+      font-size: 14px; font-weight: 800; color: var(--text);
+      background: rgba(0,0,0,.35); border-radius: 8px;
+      padding: 4px 10px; min-width: 58px; text-align: center;
+      border: 1px solid rgba(255,255,255,.08);
+    }
+    .bet-amount-display.has-bet { color: var(--gold); border-color: rgba(255,215,0,.3); }
+    .bet-hint { font-size: 9px; color: var(--muted); letter-spacing: .5px; }
+
+    /* Selected color card (active for betting) */
+    .bet-btn.selected { transform: scale(1.04); }
+    .bet-btn.selected.bc-red    { border-color: #ff4444; box-shadow: 0 0 18px rgba(255,68,68,.55); }
+    .bet-btn.selected.bc-white  { border-color: #f0f0f0; box-shadow: 0 0 18px rgba(240,240,240,.4); }
+    .bet-btn.selected.bc-yellow { border-color: #FFD700; box-shadow: 0 0 18px rgba(255,215,0,.55); }
+    .bet-btn.selected.bc-blue   { border-color: #4488ff; box-shadow: 0 0 18px rgba(68,136,255,.55); }
+
+    /* Chip preset selector */
+    .chip-selector { margin-bottom: 12px; }
+    .chip-hint-row {
+      text-align: center; font-size: 11px; color: var(--muted);
+      min-height: 16px; margin-bottom: 7px;
+    }
+    .chip-hint-row span { color: var(--gold); font-weight: 700; }
+    .chip-preset-row {
+      display: grid; grid-template-columns: repeat(6,1fr); gap: 5px;
+    }
+    .chip-btn {
+      background: rgba(255,255,255,.07);
+      border: 1.5px solid rgba(255,255,255,.12);
+      border-radius: 8px; color: var(--text);
+      font-size: 11px; font-weight: 800; padding: 8px 2px;
+      cursor: pointer; text-align: center; transition: all .15s;
+    }
+    .chip-btn:active { transform: scale(.9); }
+    .chip-btn.cur-chip {
+      background: rgba(255,215,0,.15); border-color: var(--gold);
+      color: var(--gold); box-shadow: 0 0 10px rgba(255,215,0,.3);
+    }
+
+    /* TON buy-chips button in header */
+    .hdr-buy-btn {
+      background: linear-gradient(135deg, #006aaa, #00aaff);
+      border: none; border-radius: 8px; color: #fff;
+      font-size: 10px; font-weight: 800; padding: 5px 9px;
+      cursor: pointer; letter-spacing: .3px; white-space: nowrap; flex-shrink: 0;
+    }
+
+    /* Buy Chips modal */
+    #buyModal {
+      position: fixed; inset: 0; background: rgba(0,0,0,.85);
+      z-index: 210; display: flex; align-items: flex-end; justify-content: center;
+      animation: fadeIn .2s ease;
+    }
+    #buyModal.hidden { display: none; }
+    .buy-sheet {
+      background: linear-gradient(160deg, #0d2233, #0a1a2e);
+      border: 2px solid #00aaff; border-radius: 24px 24px 0 0;
+      padding: 20px 16px 32px; width: 100%; max-width: 480px;
+      animation: slideUp .3s ease;
+    }
+    .buy-title { text-align: center; font-size: 18px; font-weight: 900; color: #00aaff; margin-bottom: 3px; }
+    .buy-rate  { text-align: center; font-size: 12px; color: var(--muted); margin-bottom: 18px; }
+    .buy-rate strong { color: #00aaff; }
+    .ton-grid  { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 16px; }
+    .ton-opt {
+      background: rgba(0,136,204,.1); border: 2px solid rgba(0,136,204,.25);
+      border-radius: 12px; padding: 12px 6px; cursor: pointer;
+      text-align: center; transition: all .2s;
+    }
+    .ton-opt:active { transform: scale(.95); }
+    .ton-opt.sel-ton { border-color: #00aaff; background: rgba(0,170,255,.2); box-shadow: 0 0 14px rgba(0,170,255,.35); }
+    .ton-val   { font-size: 16px; font-weight: 900; color: #00aaff; }
+    .ton-chips { font-size: 11px; color: var(--muted); margin-top: 3px; }
+    .buy-summary {
+      background: rgba(0,136,204,.1); border: 1px solid rgba(0,136,204,.2);
+      border-radius: 12px; padding: 12px; text-align: center; margin-bottom: 14px;
+    }
+    .buy-sum-main { font-size: 22px; font-weight: 900; color: #00aaff; }
+    .buy-sum-sub  { font-size: 11px; color: var(--muted); margin-top: 3px; }
+    .buy-pay-btn {
+      width: 100%; background: linear-gradient(135deg, #0077bb, #00aaff);
+      border: none; border-radius: 14px; color: #fff;
+      font-size: 16px; font-weight: 900; padding: 14px; cursor: pointer; margin-bottom: 8px;
+    }
+    .buy-pay-btn:disabled { opacity: .45; cursor: not-allowed; }
+    .buy-note { text-align: center; font-size: 10px; color: var(--muted); line-height: 1.6; }
+    .buy-close-btn {
+      width: 100%; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1);
+      border-radius: 14px; color: var(--muted); font-size: 13px; padding: 10px; cursor: pointer; margin-top: 8px;
+    }
+    .action-row { display: flex; gap: 10px; }
+    #rollBtn {
+      flex: 1;
+      background: linear-gradient(135deg, #b8960c, #FFD700, #b8960c);
+      border: none; border-radius: 14px; color: #0d1f14;
+      font-size: 17px; font-weight: 900; letter-spacing: 2px;
+      padding: 14px; cursor: pointer; text-transform: uppercase;
+      box-shadow: 0 4px 22px rgba(255,215,0,.35); transition: all .2s;
+    }
+    #rollBtn:active:not(:disabled) { transform: scale(.97); }
+    #rollBtn:disabled { opacity: .45; cursor: not-allowed; }
+    #clearBtn {
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 14px; color: var(--muted);
+      font-size: 13px; padding: 14px 16px; cursor: pointer; white-space: nowrap;
+    }
+
+    /* ════════════════════════════════════════════════
+       BOTTOM NAV
+    ════════════════════════════════════════════════ */
+    #bottomNav {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: #0d1f14; border-top: 2px solid rgba(255,215,0,.18);
+      display: flex; z-index: 90;
+    }
+    .nav-btn {
+      flex: 1; display: flex; flex-direction: column; align-items: center;
+      padding: 8px 4px; cursor: pointer; color: var(--muted);
+      font-size: 10px; gap: 2px; border: none; background: transparent; transition: color .2s;
+    }
+    .nav-icon { font-size: 20px; }
+    .nav-btn.active { color: var(--gold); }
+
+    /* ════════════════════════════════════════════════
+       STATS PAGE
+    ════════════════════════════════════════════════ */
+    #page-stats { padding: 16px 16px 84px; }
+    .page-header { text-align: center; margin-bottom: 20px; }
+    .page-header h2 { color: var(--gold); font-size: 20px; margin-bottom: 4px; }
+    .page-header p  { color: var(--muted); font-size: 12px; }
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+    .stat-card {
+      background: var(--bg-card); border: 1px solid rgba(255,215,0,.15);
+      border-radius: 14px; padding: 16px; text-align: center;
+    }
+    .stat-icon  { font-size: 28px; margin-bottom: 6px; }
+    .stat-value { font-size: 22px; font-weight: 800; color: var(--gold); margin-bottom: 3px; }
+    .stat-label { font-size: 10px; color: var(--muted); letter-spacing: .5px; text-transform: uppercase; }
+    .win-rate-row { text-align: center; color: var(--muted); font-size: 12px; margin-top: 4px; }
+    .win-rate-row span { color: var(--gold); font-weight: 700; font-size: 14px; }
+
+    /* ════════════════════════════════════════════════
+       LEADERBOARD PAGE
+    ════════════════════════════════════════════════ */
+    #page-leaderboard { padding: 16px 16px 84px; }
+    .lb-list { display: flex; flex-direction: column; gap: 8px; }
+    .lb-row {
+      background: var(--bg-card); border: 1px solid rgba(255,215,0,.1);
+      border-radius: 12px; padding: 12px 14px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .lb-row.me { border-color: var(--gold); background: rgba(255,215,0,.04); }
+    .lb-rank   { font-size: 16px; font-weight: 800; width: 28px; text-align: center; }
+    .lb-ava    {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: linear-gradient(135deg, #2a6a3e, #1a472a);
+      display: flex; align-items: center; justify-content: center; font-size: 18px;
+      border: 1px solid rgba(255,215,0,.2); flex-shrink: 0; overflow: hidden;
+    }
+    .lb-ava img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+    .lb-name   { flex: 1; font-size: 13px; font-weight: 600; }
+    .me-badge  { color: var(--gold); font-size: 10px; margin-left: 4px; }
+    .lb-chips  { font-size: 13px; font-weight: 700; color: var(--gold); }
+
+    /* ════════════════════════════════════════════════
+       RESULT MODAL
+    ════════════════════════════════════════════════ */
+    #resultModal {
+      position: fixed; inset: 0; background: rgba(0,0,0,.85);
+      z-index: 200; display: flex; align-items: flex-end; justify-content: center;
+      animation: fadeIn .2s ease;
+    }
+    #resultModal.hidden { display: none; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .modal-sheet {
+      background: linear-gradient(160deg, #162b1c, #0d1f14);
+      border: 2px solid var(--gold); border-radius: 24px 24px 0 0;
+      padding: 20px 16px 32px; width: 100%; max-width: 480px;
+      animation: slideUp .3s ease; max-height: 88vh; overflow-y: auto;
+    }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    .modal-title {
+      text-align: center; font-size: 20px; font-weight: 800;
+      color: var(--gold); margin-bottom: 16px; letter-spacing: 1px;
+    }
+    .modal-dice-row { display: flex; justify-content: center; gap: 10px; margin-bottom: 16px; }
+    .modal-die {
+      width: 72px; height: 72px; border-radius: 12px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-size: 9px; font-weight: 700; text-transform: uppercase;
+    }
+    .modal-die-emoji { font-size: 24px; margin-bottom: 4px; }
+    .breakdown-tbl { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 13px; }
+    .breakdown-tbl th {
+      color: var(--muted); font-size: 10px; letter-spacing: .5px; text-transform: uppercase;
+      padding: 6px 8px; text-align: left; border-bottom: 1px solid rgba(255,255,255,.07);
+    }
+    .breakdown-tbl td { padding: 8px; border-bottom: 1px solid rgba(255,255,255,.04); }
+    .tfoot-row td {
+      font-weight: 800; font-size: 15px;
+      border-top: 2px solid rgba(255,215,0,.25) !important;
+      border-bottom: none !important; padding-top: 10px !important;
+    }
+    .net-win  { color: #44ff88; }
+    .net-loss { color: #ff5555; }
+    .net-even { color: var(--muted); }
+    #playAgainBtn {
+      width: 100%; background: linear-gradient(135deg, #b8960c, #FFD700);
+      border: none; border-radius: 14px; color: #0d1f14;
+      font-size: 16px; font-weight: 900; padding: 14px; cursor: pointer; margin-top: 10px;
+    }
+
+    /* ════════════════════════════════════════════════
+       JACKPOT OVERLAY
+    ════════════════════════════════════════════════ */
+    #jackpotOverlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.9); z-index: 300;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      animation: jpFlash .5s ease;
+    }
+    #jackpotOverlay.hidden { display: none; }
+    @keyframes jpFlash {
+      0%   { background: rgba(255,215,0,.7); }
+      40%  { background: rgba(0,0,0,.95); }
+      100% { background: rgba(0,0,0,.9); }
+    }
+    .jp-text {
+      font-size: 46px; font-weight: 900; color: var(--gold);
+      text-align: center; line-height: 1.1;
+      animation: jpPulse .7s infinite alternate;
+      text-shadow: 0 0 40px rgba(255,215,0,.8);
+    }
+    @keyframes jpPulse { from { transform: scale(.88); } to { transform: scale(1.1); } }
+    .jp-sub { color: var(--muted); font-size: 16px; margin-top: 12px; }
+    .confetti-box { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+    .cf {
+      position: absolute; border-radius: 2px;
+      animation: cfFall linear forwards; top: -20px;
+    }
+    @keyframes cfFall { to { transform: translateY(110vh) rotate(720deg); opacity: 0; } }
+
+    /* ════════════════════════════════════════════════
+       UTILITY
+    ════════════════════════════════════════════════ */
+    .divider   { height: 1px; background: rgba(255,215,0,.1); margin: 14px 0; }
+    .empty-st  { text-align: center; padding: 40px 20px; color: var(--muted); }
+    .empty-ico { font-size: 48px; margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════ LOADING ═══════════ -->
+<div id="loadingScreen">
+  <div class="ld-icon">🎲</div>
+  <div class="ld-name">StakeChain</div>
+  <div class="ld-tag">Play Smart. Win Big.</div>
+  <div class="ld-spin"></div>
+</div>
+
+<!-- ═══════════ MAINTENANCE ═══════════ -->
+<div id="maintenanceScreen" class="fullscreen-msg hidden">
+  <div class="fsm-icon">🔧</div>
+  <div class="fsm-title">Under Maintenance</div>
+  <div class="fsm-body">StakeChain is currently undergoing maintenance. We'll be back shortly!</div>
+</div>
+
+<!-- ═══════════ BANNED ═══════════ -->
+<div id="bannedScreen" class="fullscreen-msg hidden">
+  <div class="fsm-icon">🚫</div>
+  <div class="fsm-title">Account Suspended</div>
+  <div class="fsm-body">Your account has been suspended. Please contact support if you believe this is an error.</div>
+</div>
+
+<!-- ═══════════ ANNOUNCEMENT BANNER ═══════════ -->
+<div id="annBanner" class="hidden">
+  <div class="ann-body">
+    <div class="ann-title" id="annTitle"></div>
+    <div class="ann-msg"   id="annMsg"></div>
+    <img class="ann-img" id="annImg" alt="">
+    <a   id="annBtn" target="_blank" rel="noopener"></a>
+  </div>
+  <span class="ann-close" onclick="dismissAnn()">&times;</span>
+</div>
+
+<!-- ═══════════ HEADER ═══════════ -->
+<div id="header">
+  <div class="hdr-left">
+    <div class="hdr-logo-fb">SC</div>
+    <div class="hdr-titles">
+      <span class="hdr-name">StakeChain</span>
+      <span class="hdr-tag">Play Smart. Win Big.</span>
+    </div>
+  </div>
+  <div class="hdr-right">
+    <!-- TON → Chips purchase button -->
+    <button class="hdr-buy-btn" onclick="openBuyChips()">&#x1F48E; Buy Chips</button>
+    <div class="hdr-avatar-fb" id="avatarFb">&#x1F464;</div>
+    <img id="avatarImg" class="hdr-avatar" src="" alt="">
+    <div class="hdr-info">
+      <span class="hdr-user"    id="hdrName">Loading&hellip;</span>
+      <span class="hdr-balance">&#x1FA99; <span id="hdrChips">0</span></span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ PAGE: PLAY ═══════════ -->
+<div id="page-play" class="page active">
+  <div id="page-play-inner">
+
+    <div class="table-wrap">
+      <div class="table-label">&#x2737; StakeChain Color Dice Table &#x2737;</div>
+      <div class="dice-row">
+        <div class="die" id="die0"><div class="die-emoji">&#x1F3B2;</div><div class="die-label">?</div></div>
+        <div class="die" id="die1"><div class="die-emoji">&#x1F3B2;</div><div class="die-label">?</div></div>
+        <div class="die" id="die2"><div class="die-emoji">&#x1F3B2;</div><div class="die-label">?</div></div>
+      </div>
+      <div class="result-msg" id="resultMsg">Place your bets and roll!</div>
+    </div>
+
+    <div class="bet-panel">
+      <div class="panel-title">Place Your Bets &middot; &times;2 one match &middot; &times;3 two &middot; &times;6 jackpot</div>
+
+      <!-- Step 1: tap a color to select it -->
+      <div class="bet-grid">
+        <div class="bet-btn bc-red"    id="bBtn-red"    onclick="selectBetColor('red')">
+          <div class="bet-color-label lc-red">&#x1F534; Red</div>
+          <div class="bet-amount-display" id="betAmt-red">0</div>
+          <div class="bet-hint">&times;2 / &times;3 / &times;6</div>
+        </div>
+        <div class="bet-btn bc-white"  id="bBtn-white"  onclick="selectBetColor('white')">
+          <div class="bet-color-label lc-white">&#x26AA; White</div>
+          <div class="bet-amount-display" id="betAmt-white">0</div>
+          <div class="bet-hint">&times;2 / &times;3 / &times;6</div>
+        </div>
+        <div class="bet-btn bc-yellow" id="bBtn-yellow" onclick="selectBetColor('yellow')">
+          <div class="bet-color-label lc-yellow">&#x1F7E1; Yellow</div>
+          <div class="bet-amount-display" id="betAmt-yellow">0</div>
+          <div class="bet-hint">&times;2 / &times;3 / &times;6</div>
+        </div>
+        <div class="bet-btn bc-blue"   id="bBtn-blue"   onclick="selectBetColor('blue')">
+          <div class="bet-color-label lc-blue">&#x1F535; Blue</div>
+          <div class="bet-amount-display" id="betAmt-blue">0</div>
+          <div class="bet-hint">&times;2 / &times;3 / &times;6</div>
+        </div>
+      </div>
+
+      <!-- Step 2: pick chip amount for the selected color -->
+      <div class="chip-selector">
+        <div class="chip-hint-row" id="chipHint">Tap a color, then choose an amount</div>
+        <div class="chip-preset-row">
+          <button class="chip-btn" onclick="setBetPreset(5)">5</button>
+          <button class="chip-btn" onclick="setBetPreset(10)">10</button>
+          <button class="chip-btn" onclick="setBetPreset(50)">50</button>
+          <button class="chip-btn" onclick="setBetPreset(100)">100</button>
+          <button class="chip-btn" onclick="setBetPreset(1000)">1K</button>
+          <button class="chip-btn" onclick="setBetPreset(5000)">5K</button>
+        </div>
+      </div>
+
+      <div class="action-row">
+        <button id="rollBtn"  onclick="doRoll()">&#x1F3B2; ROLL</button>
+        <button id="clearBtn" onclick="clearBets()">&times; Clear</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════ PAGE: STATS ═══════════ -->
+<div id="page-stats" class="page">
+  <div class="page-header">
+    <h2>&#x1F4CA; My Stats</h2>
+    <p>Your performance at the table</p>
+  </div>
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-icon">&#x1F3B2;</div>
+      <div class="stat-value" id="stGames">0</div>
+      <div class="stat-label">Total Games</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">&#x1F3C6;</div>
+      <div class="stat-value" id="stWins">0</div>
+      <div class="stat-label">Total Wins</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">&#x1F4B0;</div>
+      <div class="stat-value" id="stBiggest">0</div>
+      <div class="stat-label">Biggest Win</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">&#x1FA99;</div>
+      <div class="stat-value" id="stChips">0</div>
+      <div class="stat-label">Current Chips</div>
+    </div>
+  </div>
+  <div class="divider"></div>
+  <div class="win-rate-row">Win Rate: <span id="stRate">0%</span></div>
+</div>
+
+<!-- ═══════════ PAGE: LEADERBOARD ═══════════ -->
+<div id="page-leaderboard" class="page">
+  <div class="page-header">
+    <h2>&#x1F3C6; Leaderboard</h2>
+    <p>Top 10 players by chip balance</p>
+  </div>
+  <div id="lbList" class="lb-list">
+    <div class="empty-st"><div class="empty-ico">&#x23F3;</div><p>Loading&hellip;</p></div>
+  </div>
+</div>
+
+<!-- ═══════════ BOTTOM NAV ═══════════ -->
+<div id="bottomNav">
+  <button class="nav-btn active" id="nav-play"        onclick="navTo('play')">
+    <span class="nav-icon">&#x1F3B2;</span><span>Play</span>
+  </button>
+  <button class="nav-btn"        id="nav-stats"       onclick="navTo('stats')">
+    <span class="nav-icon">&#x1F4CA;</span><span>My Stats</span>
+  </button>
+  <button class="nav-btn"        id="nav-leaderboard" onclick="navTo('leaderboard')">
+    <span class="nav-icon">&#x1F3C6;</span><span>Leaderboard</span>
+  </button>
+</div>
+
+<!-- ═══════════ RESULT MODAL ═══════════ -->
+<div id="resultModal" class="hidden">
+  <div class="modal-sheet">
+    <div class="modal-title" id="modalTitle">Roll Result</div>
+    <div class="modal-dice-row" id="modalDiceRow"></div>
+    <table class="breakdown-tbl">
+      <thead>
+        <tr>
+          <th>Color</th><th>Bet</th><th>Matched</th><th>Payout</th>
+        </tr>
+      </thead>
+      <tbody id="brkBody"></tbody>
+      <tfoot>
+        <tr class="tfoot-row">
+          <td colspan="2">Net Result</td>
+          <td colspan="2" id="netCell">&mdash;</td>
+        </tr>
+      </tfoot>
+    </table>
+    <button id="playAgainBtn" onclick="closeModal()">&#x1F3B2; Play Again</button>
+  </div>
+</div>
+
+<!-- ═══════════ BUY CHIPS (TON) MODAL ═══════════ -->
+<div id="buyModal" class="hidden">
+  <div class="buy-sheet">
+    <div class="buy-title">&#x1F48E; Buy Chips</div>
+    <div class="buy-rate">Conversion rate: <strong>1 TON = 50 Chips</strong></div>
+
+    <!-- TON amount presets -->
+    <div class="ton-grid">
+      <div class="ton-opt" id="tonOpt-0.5"  onclick="selectTonPreset(0.5)">
+        <div class="ton-val">0.5 TON</div><div class="ton-chips">= 25 chips</div>
+      </div>
+      <div class="ton-opt" id="tonOpt-1"    onclick="selectTonPreset(1)">
+        <div class="ton-val">1 TON</div><div class="ton-chips">= 50 chips</div>
+      </div>
+      <div class="ton-opt" id="tonOpt-2"    onclick="selectTonPreset(2)">
+        <div class="ton-val">2 TON</div><div class="ton-chips">= 100 chips</div>
+      </div>
+      <div class="ton-opt" id="tonOpt-5"    onclick="selectTonPreset(5)">
+        <div class="ton-val">5 TON</div><div class="ton-chips">= 250 chips</div>
+      </div>
+      <div class="ton-opt" id="tonOpt-10"   onclick="selectTonPreset(10)">
+        <div class="ton-val">10 TON</div><div class="ton-chips">= 500 chips</div>
+      </div>
+      <div class="ton-opt" id="tonOpt-20"   onclick="selectTonPreset(20)">
+        <div class="ton-val">20 TON</div><div class="ton-chips">= 1000 chips</div>
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="buy-summary">
+      <div class="buy-sum-main" id="buySumMain">Select an amount above</div>
+      <div class="buy-sum-sub"  id="buySumSub">Chips will be added after payment confirms</div>
+    </div>
+
+    <!-- Pay button -->
+    <button class="buy-pay-btn" id="buyPayBtn" onclick="doBuyChips()" disabled>
+      &#x1F4B8; Pay via Bot
+    </button>
+    <div class="buy-note">
+      Tapping "Pay via Bot" opens your StakeChain bot to process the TON payment.<br>
+      Chips are credited automatically once payment is confirmed.
+    </div>
+    <button class="buy-close-btn" onclick="closeBuyChips()">Cancel</button>
+  </div>
+</div>
+
+<!-- ═══════════ JACKPOT OVERLAY ═══════════ -->
+<div id="jackpotOverlay" class="hidden">
+  <div class="confetti-box" id="cfBox"></div>
+  <div class="jp-text">JACKPOT!<br>TRIPLE MATCH!</div>
+  <div class="jp-sub" id="jpSub"></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════════════════════ -->
+<script>
+/* ─────────────────────────────────────────────────────────
+   TODO: Replace placeholder values with your real Firebase config.
+   Find these in: Firebase Console → Project Settings → Your apps
+   ───────────────────────────────────────────────────────── */
+var firebaseConfig = {
+  apiKey:            "AIzaSyCs0PVgC5nmiJjVQlslI9l_l-o4Ida_8bw",
+  authDomain:        "stakechain-9707e.firebaseapp.com",
+  projectId:         "stakechain-9707e",
+  storageBucket:     "stakechain-9707e.firebasestorage.app",
+  messagingSenderId: "425240338938",
+  appId:             "1:425240338938:web:b836ebb159834f733a8443"
+};
+
+/* ─────────────────────────────────────────────────────────
+   Firebase & Telegram bootstrap
+   ───────────────────────────────────────────────────────── */
+firebase.initializeApp(firebaseConfig);
+var db = firebase.firestore();
+
+var tgApp = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+if (tgApp) { tgApp.ready(); tgApp.expand(); }
+
+// Fall back to demo data when running in a browser (not Telegram)
+var TG_USER = (tgApp && tgApp.initDataUnsafe && tgApp.initDataUnsafe.user) || {
+  id: 123456789, username: 'demouser', first_name: 'Demo Player', photo_url: null
+};
+
+/* ─────────────────────────────────────────────────────────
+   Game state
+   ───────────────────────────────────────────────────────── */
+var STATE = {
+  userId:     String(TG_USER.id),
+  username:   TG_USER.username   || ('user' + TG_USER.id),
+  firstName:  TG_USER.first_name || 'Player',
+  photoUrl:   TG_USER.photo_url  || null,
+  chips: 0, totalGames: 0, totalWins: 0, biggestWin: 0
+};
+
+// Runtime settings loaded from adminConfig/settings
+var SETTINGS = { startingChips: 1000, minBet: 10, maintenanceMode: false };
+
+/* ─────────────────────────────────────────────────────────
+   Color definitions (no raw emoji in JS — Unicode escapes only)
+   ───────────────────────────────────────────────────────── */
+var COLORS   = ['red','white','yellow','blue'];
+var C_EMOJI  = { red:'\uD83D\uDD34', white:'\u26AA', yellow:'\uD83D\uDFE1', blue:'\uD83D\uDD35' };
+var C_CSS    = { red:'dc-red', white:'dc-white', yellow:'dc-yellow', blue:'dc-blue' };
+var C_HEX    = { red:'#ff4444', white:'#f0f0f0', yellow:'#FFD700', blue:'#4488ff' };
+var C_BG     = {
+  red:'linear-gradient(145deg,#cc2222,#ff4444)',
+  white:'linear-gradient(145deg,#cccccc,#f0f0f0)',
+  yellow:'linear-gradient(145deg,#b8960c,#FFD700)',
+  blue:'linear-gradient(145deg,#2255cc,#4488ff)'
+};
+var C_TEXT   = { red:'#fff', white:'#333', yellow:'#333', blue:'#fff' };
+var RANK_EMO = ['\uD83E\uDD47','\uD83E\uDD48','\uD83E\uDD49'];
+
+/* ─────────────────────────────────────────────────────────
+   HTML-escaping helper — ALWAYS use when inserting user data into DOM
+   ───────────────────────────────────────────────────────── */
+function esc(str) {
+  return String(str)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+
+/* ─────────────────────────────────────────────────────────
+   App initialisation
+   ───────────────────────────────────────────────────────── */
+(function init() {
+  loadSettings()
+    .then(function() { return loadUser(); })
+    .then(function()  { checkAnnouncements(); hideLoading(); })
+    .catch(function(e) {
+      if (e.message === 'maintenance' || e.message === 'banned') return;
+      STATE.chips = SETTINGS.startingChips;
+      updateUI();
+      hideLoading();
+    });
+})();
+
+function hideLoading() {
+  document.getElementById('loadingScreen').classList.add('hidden');
+}
+
+/* ─────────────────────────────────────────────────────────
+   Load adminConfig/settings from Firestore
+   ───────────────────────────────────────────────────────── */
+function loadSettings() {
+  return db.collection('adminConfig').doc('settings').get()
+    .then(function(snap) {
+      if (!snap.exists) return;
+      var d = snap.data();
+      if (typeof d.startingChips    === 'number')  SETTINGS.startingChips   = d.startingChips;
+      if (typeof d.minBet           === 'number')  SETTINGS.minBet          = d.minBet;
+      if (typeof d.maintenanceMode  === 'boolean') SETTINGS.maintenanceMode = d.maintenanceMode;
+      if (SETTINGS.maintenanceMode) {
+        document.getElementById('maintenanceScreen').classList.remove('hidden');
+        hideLoading();
+        throw new Error('maintenance');
+      }
+    })
+    .catch(function(e) {
+      if (e.message === 'maintenance') throw e;
+      return Promise.resolve(); // settings unavailable → use defaults
+    });
+}
+
+/* ─────────────────────────────────────────────────────────
+   Load or create user document
+   ───────────────────────────────────────────────────────── */
+function loadUser() {
+  var ref = db.collection('users').doc(STATE.userId);
+  return ref.get().then(function(snap) {
+    if (snap.exists) {
+      var d = snap.data();
+      if (d.banned) {
+        document.getElementById('bannedScreen').classList.remove('hidden');
+        hideLoading();
+        throw new Error('banned');
+      }
+      STATE.chips      = typeof d.chips      === 'number' ? d.chips      : SETTINGS.startingChips;
+      STATE.totalGames = typeof d.totalGames === 'number' ? d.totalGames : 0;
+      STATE.totalWins  = typeof d.totalWins  === 'number' ? d.totalWins  : 0;
+      STATE.biggestWin = typeof d.biggestWin === 'number' ? d.biggestWin : 0;
+    } else {
+      // First visit — create document with starting chips
+      STATE.chips = SETTINGS.startingChips;
+      return ref.set({
+        telegramId: STATE.userId, username: STATE.username,
+        firstName: STATE.firstName, photoUrl: STATE.photoUrl,
+        chips: STATE.chips, totalGames: 0, totalWins: 0, biggestWin: 0,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+  }).then(function() {
+    updateUI();
+  }).catch(function(e) {
+    if (e.message === 'banned') throw e;
+    STATE.chips = SETTINGS.startingChips;
+    updateUI();
+  });
+}
+
+/* ─────────────────────────────────────────────────────────
+   Persist user state after each game
+   ───────────────────────────────────────────────────────── */
+function saveUser() {
+  return db.collection('users').doc(STATE.userId).update({
+    chips: STATE.chips, totalGames: STATE.totalGames,
+    totalWins: STATE.totalWins, biggestWin: STATE.biggestWin,
+    username: STATE.username, firstName: STATE.firstName, photoUrl: STATE.photoUrl
+  }).catch(function(e) { console.error('saveUser:', e); });
+}
+
+/* ─────────────────────────────────────────────────────────
+   Update all UI elements
+   ───────────────────────────────────────────────────────── */
+function updateUI() {
+  // Header — use textContent (safe for user-supplied strings)
+  document.getElementById('hdrName').textContent = STATE.firstName;
+  animateChips(STATE.chips);
+
+  // Avatar: only set src if it is a URL (basic guard)
+  if (STATE.photoUrl && /^https?:\/\//.test(STATE.photoUrl)) {
+    var img = document.getElementById('avatarImg');
+    img.src = STATE.photoUrl;
+    img.style.display = 'block';
+    document.getElementById('avatarFb').style.display = 'none';
+  }
+
+  // Stats page
+  document.getElementById('stGames').textContent   = STATE.totalGames;
+  document.getElementById('stWins').textContent    = STATE.totalWins;
+  document.getElementById('stBiggest').textContent = STATE.biggestWin;
+  document.getElementById('stChips').textContent   = STATE.chips;
+  var rate = STATE.totalGames > 0
+    ? Math.round(STATE.totalWins / STATE.totalGames * 100) : 0;
+  document.getElementById('stRate').textContent = rate + '%';
+}
+
+/* Smooth count-up animation for chip balance display */
+function animateChips(target) {
+  var el = document.getElementById('hdrChips');
+  var from = parseInt(el.textContent, 10) || 0;
+  var diff = target - from, steps = 18, step = 0;
+  clearInterval(animateChips._t);
+  animateChips._t = setInterval(function() {
+    step++;
+    el.textContent = Math.round(from + diff * step / steps);
+    if (step >= steps) { clearInterval(animateChips._t); el.textContent = target; }
+  }, 28);
+}
+animateChips._t = null;
+
+/* ─────────────────────────────────────────────────────────
+   Bet state — preset chip buttons replace free-form inputs
+   ───────────────────────────────────────────────────────── */
+
+// Current bet per color (chips)
+var _bets = { red: 0, white: 0, yellow: 0, blue: 0 };
+// Which color is currently selected for chip assignment
+var _activeBetColor = null;
+
+/** Tap a color card to select it as the target for chip preset buttons */
+function selectBetColor(color) {
+  // Deselect previous
+  if (_activeBetColor) {
+    document.getElementById('bBtn-' + _activeBetColor).classList.remove('selected');
+  }
+  _activeBetColor = color;
+  document.getElementById('bBtn-' + color).classList.add('selected');
+
+  // Update hint row
+  var hint = document.getElementById('chipHint');
+  var colorLabel = color.charAt(0).toUpperCase() + color.slice(1);
+  hint.textContent = 'Setting bet for ';
+  var strong = document.createElement('span');
+  strong.textContent = colorLabel;
+  hint.appendChild(strong);
+
+  // Highlight the chip button matching this color's current bet
+  refreshChipButtonHighlight();
+}
+
+/** Refresh which chip button is highlighted based on active color's bet */
+function refreshChipButtonHighlight() {
+  var PRESETS = [5, 10, 50, 100, 1000, 5000];
+  var currentAmt = _activeBetColor ? (_bets[_activeBetColor] || 0) : 0;
+  document.querySelectorAll('.chip-btn').forEach(function(btn, idx) {
+    if (currentAmt === PRESETS[idx]) btn.classList.add('cur-chip');
+    else btn.classList.remove('cur-chip');
+  });
+}
+
+/** Tap a chip preset button — assigns that amount to the active color */
+function setBetPreset(amount) {
+  if (!_activeBetColor) {
+    showResultMsg('Tap a color first, then choose a chip amount.');
+    return;
+  }
+  // Toggle: tap same amount again to clear that color's bet
+  if (_bets[_activeBetColor] === amount) {
+    _bets[_activeBetColor] = 0;
+  } else {
+    _bets[_activeBetColor] = amount;
+  }
+  updateBetDisplay(_activeBetColor);
+  refreshChipButtonHighlight();
+}
+
+/** Update the amount badge on a color card */
+function updateBetDisplay(color) {
+  var amt = _bets[color] || 0;
+  var el  = document.getElementById('betAmt-' + color);
+  var btn = document.getElementById('bBtn-' + color);
+  el.textContent = amt > 0 ? String(amt) : '0';
+  if (amt > 0) {
+    el.classList.add('has-bet');
+    btn.classList.add('active');
+  } else {
+    el.classList.remove('has-bet');
+    btn.classList.remove('active');
+  }
+}
+
+function clearBets() {
+  COLORS.forEach(function(c) {
+    _bets[c] = 0;
+    updateBetDisplay(c);
+    document.getElementById('bBtn-' + c).classList.remove('selected');
+  });
+  _activeBetColor = null;
+  document.getElementById('chipHint').textContent = 'Tap a color, then choose an amount';
+  refreshChipButtonHighlight();
+}
+
+/* ─────────────────────────────────────────────────────────
+   ROLL — core game logic
+   ───────────────────────────────────────────────────────── */
+var isRolling = false;
+
+function doRoll() {
+  if (isRolling) return;
+
+  // Collect bets from the _bets preset state (no free-input fields)
+  var bets = {}, totalBet = 0;
+  COLORS.forEach(function(c) {
+    var v = _bets[c] || 0;
+    bets[c] = v; totalBet += v;
+  });
+  if (totalBet === 0)         return showResultMsg('Tap a color and choose a chip amount!');
+  if (totalBet > STATE.chips) return showResultMsg('Not enough chips! You have ' + STATE.chips + '.');
+
+  // Deduct bet before roll (prevents double-spend if user taps quickly)
+  STATE.chips -= totalBet;
+  animateChips(STATE.chips);
+  isRolling = true;
+  document.getElementById('rollBtn').disabled = true;
+  showResultMsg('Rolling\u2026');
+
+  /* Animate dice for 2 s, then resolve the actual result */
+  animateDice(function() {
+    // Each die independently picks 1 of 4 colors with equal probability
+    var diceResult = [
+      COLORS[Math.floor(Math.random() * 4)],
+      COLORS[Math.floor(Math.random() * 4)],
+      COLORS[Math.floor(Math.random() * 4)]
+    ];
+    setDice(diceResult);
+
+    // Count occurrences of each color across the 3 dice
+    var counts = { red:0, white:0, yellow:0, blue:0 };
+    diceResult.forEach(function(c) { counts[c]++; });
+
+    /* Payout multipliers:
+       0 matches → lose bet (×0 return)
+       1 match   → ×2 (win 1× on top of returned bet)
+       2 matches → ×3
+       3 matches → ×6 JACKPOT                         */
+    var totalPayout = 0, breakdown = [], jackpot = false;
+    COLORS.forEach(function(c) {
+      if (!bets[c]) return;
+      var n = counts[c], payout = 0;
+      if (n === 1) payout = bets[c] * 2;
+      else if (n === 2) payout = bets[c] * 3;
+      else if (n === 3) { payout = bets[c] * 6; jackpot = true; }
+      totalPayout += payout;
+      breakdown.push({ color:c, bet:bets[c], matched:n, payout:payout });
+    });
+
+    var netResult = totalPayout - totalBet;
+    STATE.chips += totalPayout;
+    STATE.totalGames++;
+    if (netResult > 0) STATE.totalWins++;
+    if (netResult > STATE.biggestWin) STATE.biggestWin = netResult;
+
+    // Fire-and-forget Firestore writes
+    saveUser();
+    saveGameHistory(bets, diceResult, totalBet, totalPayout, netResult);
+    updateUI();
+
+    isRolling = false;
+    document.getElementById('rollBtn').disabled = false;
+    var txt = netResult > 0 ? 'You won ' + netResult + ' chips!'
+            : netResult < 0 ? 'You lost ' + Math.abs(netResult) + ' chips.'
+            : 'Break even!';
+    showResultMsg(txt);
+
+    if (jackpot) {
+      showJackpot(totalPayout, function() { showResultModal(diceResult, breakdown, netResult); });
+    } else {
+      showResultModal(diceResult, breakdown, netResult);
+    }
+  });
+}
+
+function showResultMsg(t) { document.getElementById('resultMsg').textContent = t; }
+
+/* ─────────────────────────────────────────────────────────
+   Dice animation — rapid random color cycling for 2 s
+   ───────────────────────────────────────────────────────── */
+function animateDice(callback) {
+  var elapsed = 0, interval = 80, duration = 2000;
+  for (var i = 0; i < 3; i++) document.getElementById('die' + i).classList.add('rolling');
+  var anim = setInterval(function() {
+    elapsed += interval;
+    for (var j = 0; j < 3; j++) {
+      setDieAppearance(j, COLORS[Math.floor(Math.random() * 4)], true);
+    }
+    if (elapsed >= duration) {
+      clearInterval(anim);
+      for (var k = 0; k < 3; k++) document.getElementById('die' + k).classList.remove('rolling');
+      callback();
+    }
+  }, interval);
+}
+
+function setDice(colors) {
+  for (var i = 0; i < 3; i++) setDieAppearance(i, colors[i], false);
+}
+
+function setDieAppearance(idx, color, rolling) {
+  var die = document.getElementById('die' + idx);
+  die.className = 'die' + (rolling ? ' rolling' : '') + ' ' + C_CSS[color];
+  // Safe: these are controlled constant values, not user input
+  die.querySelector('.die-emoji').textContent = C_EMOJI[color];
+  die.querySelector('.die-label').textContent = color.charAt(0).toUpperCase() + color.slice(1);
+}
+
+/* ─────────────────────────────────────────────────────────
+   Result modal — built with DOM methods to avoid XSS
+   ───────────────────────────────────────────────────────── */
+function showResultModal(diceResult, breakdown, netResult) {
+  // Dice row
+  var row = document.getElementById('modalDiceRow');
+  while (row.firstChild) row.removeChild(row.firstChild);
+  diceResult.forEach(function(c) {
+    var d    = document.createElement('div');
+    d.className          = 'modal-die';
+    d.style.background   = C_BG[c];
+    d.style.color        = C_TEXT[c];
+    d.style.border       = '2px solid ' + C_HEX[c];
+
+    var emoEl = document.createElement('div');
+    emoEl.className     = 'modal-die-emoji';
+    emoEl.textContent   = C_EMOJI[c];
+
+    var lblEl = document.createElement('div');
+    lblEl.style.fontSize   = '9px';
+    lblEl.style.fontWeight = '700';
+    lblEl.textContent      = c.toUpperCase();
+
+    d.appendChild(emoEl);
+    d.appendChild(lblEl);
+    row.appendChild(d);
+  });
+
+  // Breakdown rows — all user-facing numbers are numeric, safe as textContent
+  var tbody = document.getElementById('brkBody');
+  while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+  breakdown.forEach(function(r) {
+    var tr     = document.createElement('tr');
+    var matchLabel = r.matched === 0 ? '\u2715 Miss'
+                   : r.matched === 3 ? r.matched + '\u00d7 JACKPOT'
+                   : r.matched + '\u00d7 Hit';
+
+    var cells = [
+      { text: C_EMOJI[r.color] + ' ' + r.color, color: C_HEX[r.color] },
+      { text: String(r.bet) },
+      { text: matchLabel },
+      { text: r.payout > 0 ? '+' + r.payout : '\u2014', color: r.payout > 0 ? '#44ff88' : '#ff5555' }
+    ];
+    cells.forEach(function(cell) {
+      var td = document.createElement('td');
+      td.textContent = cell.text;
+      if (cell.color) td.style.color = cell.color;
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+
+  // Net result
+  var nc = document.getElementById('netCell');
+  var mt = document.getElementById('modalTitle');
+  if (netResult > 0) {
+    nc.textContent = '+' + netResult + ' chips';
+    nc.className = 'net-win';
+    mt.textContent = 'You Won!';
+  } else if (netResult < 0) {
+    nc.textContent = netResult + ' chips';
+    nc.className = 'net-loss';
+    mt.textContent = 'Better Luck Next Time';
+  } else {
+    nc.textContent = '\u00b10 chips';
+    nc.className = 'net-even';
+    mt.textContent = 'Break Even';
+  }
+
+  document.getElementById('resultModal').classList.remove('hidden');
+}
+
+function closeModal() {
+  document.getElementById('resultModal').classList.add('hidden');
+  clearBets();
+  for (var i = 0; i < 3; i++) {
+    var die = document.getElementById('die' + i);
+    die.className = 'die';
+    die.querySelector('.die-emoji').textContent = '\uD83C\uDFB2';
+    die.querySelector('.die-label').textContent = '?';
+  }
+  showResultMsg('Place your bets and roll!');
+}
+
+/* ─────────────────────────────────────────────────────────
+   Jackpot overlay with confetti
+   ───────────────────────────────────────────────────────── */
+function showJackpot(payout, cb) {
+  document.getElementById('jpSub').textContent = 'You won ' + payout + ' chips!';
+  var overlay = document.getElementById('jackpotOverlay');
+  overlay.classList.remove('hidden');
+
+  var box     = document.getElementById('cfBox');
+  while (box.firstChild) box.removeChild(box.firstChild);
+
+  var palette = ['#FFD700','#ff4444','#4488ff','#44ff88','#FF69B4','#ff8800'];
+  for (var i = 0; i < 70; i++) {
+    var p = document.createElement('div');
+    p.className                = 'cf';
+    p.style.left               = Math.random() * 100 + '%';
+    p.style.backgroundColor    = palette[Math.floor(Math.random() * palette.length)];
+    p.style.width              = (7  + Math.random() * 9) + 'px';
+    p.style.height             = (7  + Math.random() * 9) + 'px';
+    p.style.animationDuration  = (1.4 + Math.random() * 2) + 's';
+    p.style.animationDelay     = (Math.random() * 0.6) + 's';
+    box.appendChild(p);
+  }
+  setTimeout(function() { overlay.classList.add('hidden'); if (cb) cb(); }, 2600);
+}
+
+/* ─────────────────────────────────────────────────────────
+   Save game history to Firestore
+   ───────────────────────────────────────────────────────── */
+function saveGameHistory(bets, diceResult, totalBet, totalPayout, netResult) {
+  db.collection('gameHistory').add({
+    telegramId: STATE.userId, username: STATE.username,
+    bets: bets, diceResult: diceResult,
+    totalBet: totalBet, totalPayout: totalPayout, netResult: netResult,
+    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+  }).catch(function(e) { console.error('saveGameHistory:', e); });
+}
+
+/* ─────────────────────────────────────────────────────────
+   Leaderboard — top 10 by chips
+   ───────────────────────────────────────────────────────── */
+function loadLeaderboard() {
+  var list = document.getElementById('lbList');
+  while (list.firstChild) list.removeChild(list.firstChild);
+  var loadEl = document.createElement('div');
+  loadEl.className = 'empty-st';
+  loadEl.textContent = 'Loading\u2026';
+  list.appendChild(loadEl);
+
+  db.collection('users').orderBy('chips','desc').limit(10).get()
+    .then(function(snap) {
+      while (list.firstChild) list.removeChild(list.firstChild);
+      if (snap.empty) {
+        var empty = document.createElement('div');
+        empty.className = 'empty-st';
+        empty.textContent = 'No players yet.';
+        list.appendChild(empty); return;
+      }
+      var rank = 0;
+      snap.forEach(function(doc) {
+        rank++;
+        var d    = doc.data();
+        var isMe = (doc.id === STATE.userId);
+
+        var row  = document.createElement('div');
+        row.className = 'lb-row' + (isMe ? ' me' : '');
+
+        // Rank cell
+        var rankEl = document.createElement('div');
+        rankEl.className   = 'lb-rank';
+        rankEl.textContent = rank <= 3 ? RANK_EMO[rank - 1] : String(rank);
+        row.appendChild(rankEl);
+
+        // Avatar
+        var avaEl = document.createElement('div');
+        avaEl.className = 'lb-ava';
+        if (d.photoUrl && /^https?:\/\//.test(d.photoUrl)) {
+          var img = document.createElement('img');
+          img.src = d.photoUrl; img.alt = '';
+          avaEl.appendChild(img);
+        } else {
+          var fn = d.firstName || d.username || '?';
+          avaEl.textContent = fn.charAt(0).toUpperCase();
+        }
+        row.appendChild(avaEl);
+
+        // Name
+        var nameEl = document.createElement('div');
+        nameEl.className   = 'lb-name';
+        nameEl.textContent = d.firstName || d.username || 'Player';
+        if (isMe) {
+          var badge = document.createElement('span');
+          badge.className   = 'me-badge';
+          badge.textContent = '(You)';
+          nameEl.appendChild(badge);
+        }
+        row.appendChild(nameEl);
+
+        // Chips
+        var chipEl = document.createElement('div');
+        chipEl.className   = 'lb-chips';
+        chipEl.textContent = '\uD83E\uDE99 ' + (d.chips || 0);
+        row.appendChild(chipEl);
+
+        list.appendChild(row);
+      });
+    })
+    .catch(function(e) {
+      console.error('loadLeaderboard:', e);
+      while (list.firstChild) list.removeChild(list.firstChild);
+      var err = document.createElement('div');
+      err.className = 'empty-st';
+      err.textContent = 'Failed to load leaderboard.';
+      list.appendChild(err);
+    });
+}
+
+/* ─────────────────────────────────────────────────────────
+   Announcements
+   ───────────────────────────────────────────────────────── */
+var _currentAnnId = null;
+
+function checkAnnouncements() {
+  var DKEY      = 'sc_ann_' + STATE.userId;
+  var dismissed = JSON.parse(localStorage.getItem(DKEY) || '[]');
+
+  db.collection('announcements').orderBy('createdAt','desc').limit(5).get()
+    .then(function(snap) {
+      snap.forEach(function(doc) {
+        if (dismissed.indexOf(doc.id) !== -1) return;
+        _currentAnnId = doc.id;
+        var d = doc.data();
+
+        // Use textContent for user-supplied text fields
+        document.getElementById('annTitle').textContent = d.title   || '';
+        document.getElementById('annMsg').textContent   = d.message || '';
+
+        var imgEl = document.getElementById('annImg');
+        if (d.imageUrl && /^https?:\/\//.test(d.imageUrl)) {
+          imgEl.src = d.imageUrl; imgEl.style.display = 'block';
+        } else {
+          imgEl.style.display = 'none';
+        }
+        var btnEl = document.getElementById('annBtn');
+        if (d.buttonLabel && d.buttonUrl) {
+          btnEl.textContent = d.buttonLabel;
+          btnEl.href        = d.buttonUrl;
+          btnEl.style.display = 'inline-block';
+        } else {
+          btnEl.style.display = 'none';
+        }
+        document.getElementById('annBanner').classList.remove('hidden');
+        return; // show only the first unread announcement
+      });
+    })
+    .catch(function(e) { console.error('checkAnnouncements:', e); });
+}
+
+function dismissAnn() {
+  if (_currentAnnId) {
+    var DKEY      = 'sc_ann_' + STATE.userId;
+    var dismissed = JSON.parse(localStorage.getItem(DKEY) || '[]');
+    if (dismissed.indexOf(_currentAnnId) === -1) dismissed.push(_currentAnnId);
+    localStorage.setItem(DKEY, JSON.stringify(dismissed));
+  }
+  document.getElementById('annBanner').classList.add('hidden');
+}
+
+/* ─────────────────────────────────────────────────────────
+   Navigation
+   ───────────────────────────────────────────────────────── */
+function navTo(page) {
+  document.querySelectorAll('.page').forEach(function(p)    { p.classList.remove('active'); });
+  document.querySelectorAll('.nav-btn').forEach(function(b) { b.classList.remove('active'); });
+  document.getElementById('page-'  + page).classList.add('active');
+  document.getElementById('nav-'   + page).classList.add('active');
+  if (page === 'leaderboard') loadLeaderboard();
+  if (page === 'stats')       updateUI();
+}
+
+/* ─────────────────────────────────────────────────────────
+   TON → CHIPS PURCHASE MODAL
+   Rate: 1 TON = 50 Chips
+   Flow: user picks TON amount → "Pay via Bot" opens bot deep link
+         → bot processes TON Stars invoice → updates chips in Firestore
+   ───────────────────────────────────────────────────────── */
+
+// TODO: set your bot username here (without @)
+var BOT_USERNAME = 'YourStakeChainBot';
+var TON_TO_CHIPS = 50; // 1 TON = 50 chips
+
+var _selectedTon = 0; // currently chosen TON amount in the modal
+
+function openBuyChips() {
+  _selectedTon = 0;
+  // Reset all option highlights
+  [0.5, 1, 2, 5, 10, 20].forEach(function(v) {
+    var el = document.getElementById('tonOpt-' + v);
+    if (el) el.classList.remove('sel-ton');
+  });
+  document.getElementById('buySumMain').textContent = 'Select an amount above';
+  document.getElementById('buySumSub').textContent  = 'Chips will be added after payment confirms';
+  document.getElementById('buyPayBtn').disabled = true;
+  document.getElementById('buyModal').classList.remove('hidden');
+}
+
+function closeBuyChips() {
+  document.getElementById('buyModal').classList.add('hidden');
+}
+
+/** Highlight the tapped TON option and update the summary */
+function selectTonPreset(tonAmount) {
+  _selectedTon = tonAmount;
+
+  // Clear all highlights
+  [0.5, 1, 2, 5, 10, 20].forEach(function(v) {
+    var el = document.getElementById('tonOpt-' + v);
+    if (el) el.classList.remove('sel-ton');
+  });
+  var opt = document.getElementById('tonOpt-' + tonAmount);
+  if (opt) opt.classList.add('sel-ton');
+
+  var chips = Math.round(tonAmount * TON_TO_CHIPS);
+  document.getElementById('buySumMain').textContent = tonAmount + ' TON = ' + chips + ' Chips';
+  document.getElementById('buySumSub').textContent  = 'You will receive ' + chips + ' chips after payment';
+  document.getElementById('buyPayBtn').disabled = false;
+}
+
+/**
+ * Opens the Telegram bot with a deep link that encodes the purchase amount.
+ * The bot receives ?start=buy_<chips> and triggers a TON Stars invoice.
+ * Once the user pays, the bot credits chips to the user's Firestore document.
+ */
+function doBuyChips() {
+  if (!_selectedTon) return;
+  var chips    = Math.round(_selectedTon * TON_TO_CHIPS);
+  var deepLink = 'https://t.me/' + BOT_USERNAME + '?start=buy_' + chips;
+
+  // Open the bot link inside Telegram (openTelegramLink keeps the Mini App open)
+  if (tgApp && tgApp.openTelegramLink) {
+    tgApp.openTelegramLink(deepLink);
+  } else {
+    window.open(deepLink, '_blank');
+  }
+  closeBuyChips();
+}
+</script>
+</body>
+</html>
